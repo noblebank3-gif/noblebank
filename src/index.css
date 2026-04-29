@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-surface text-white font-sans;
+    min-height: 100dvh;
+    line-height: 1.6;
+  }
+
+  :focus-visible {
+    outline: 2px solid theme('colors.gold.500');
+    outline-offset: 2px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-surface;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-surface-border rounded-full;
+  }
+
+  ::selection {
+    @apply bg-gold-500/30 text-white;
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 100px theme('colors.surface.elevated') inset;
+    -webkit-text-fill-color: white;
+    caret-color: white;
+  }
+}
+
+@layer components {
+  .page-container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .card {
+    @apply bg-surface-card border border-surface-border rounded-2xl;
+  }
+
+  .card-hover {
+    @apply card transition-all duration-200 hover:border-surface-elevated hover:shadow-card;
+  }
+
+  .section-title {
+    @apply text-lg font-semibold text-white;
+  }
+
+  .label-text {
+    @apply text-xs font-medium text-slate-400 uppercase tracking-wider;
+  }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      theme('colors.surface.elevated') 0%,
+      rgba(255,255,255,0.03) 50%,
+      theme('colors.surface.elevated') 100%
+    );
+    background-size: 1000px 100%;
+    animation: shimmer 1.8s infinite linear;
+  }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -1000px 0; }
+  100% { background-position:  1000px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .shimmer {
+    animation: none;
+    background: theme('colors.surface.elevated');
+  }
+}
