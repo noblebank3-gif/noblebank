@@ -1,8 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { ToastContainer } from '@/components/ui/Toast';
 import { AuthGuard, GuestGuard } from '@/components/guards/AuthGuard';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
+import { useAuthStore } from '@/store/authStore';
+import { supabase } from '@/lib/supabase';
 
 const LandingPage      = lazy(() => import('@/pages/landing/LandingPage').then(m => ({ default: m.LandingPage })));
 const LoginPage        = lazy(() => import('@/pages/auth/LoginPage').then(m => ({ default: m.LoginPage })));
@@ -21,20 +23,36 @@ const PageLoader = () => (
 );
 
 function App() {
+  const { hydrate, login, logout } = useAuthStore();
+
+  useEffect(() => {
+    // Restore session on first load
+    hydrate();
+
+    // Keep Zustand in sync when Supabase session changes (other tabs, expiry)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') logout();
+      if (event === 'SIGNED_IN')  hydrate();
+    });
+
+    return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // suppress unused-var warning — login is used by child components via the store
+  void login;
+
   return (
     <BrowserRouter>
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          {/* Public landing page */}
           <Route path="/" element={<LandingPage />} />
 
-          {/* Guest-only routes */}
           <Route element={<GuestGuard />}>
             <Route path="/login"  element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
           </Route>
 
-          {/* Protected routes */}
           <Route element={<AuthGuard />}>
             <Route path="/dashboard" element={<DashboardLayout />}>
               <Route index                  element={<DashboardPage />}    />
@@ -46,7 +64,6 @@ function App() {
             </Route>
           </Route>
 
-          {/* 404 fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
