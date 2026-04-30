@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/User/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/d04c20a0-13f1-4e70-9a22-90f4d96f9e69/3e2d54d4-f33e-4121-b4a4-4a494e532579/skills/ui-ux-pro-max/**)",
+      "Bash(python scripts/search.py \"international banking fintech premium corporate dark navy gold\" --design-system -p \"Noble Trust Bank\" -f markdown)",
+      "Bash(python \"C:/Users/User/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/d04c20a0-13f1-4e70-9a22-90f4d96f9e69/3e2d54d4-f33e-4121-b4a4-4a494e532579/skills/ui-ux-pro-max/scripts/search.py\" \"international banking fintech premium corporate dark navy gold\" --design-system -p \"Noble Trust Bank\" -f markdown)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\User\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\d04c20a0-13f1-4e70-9a22-90f4d96f9e69\\\\3e2d54d4-f33e-4121-b4a4-4a494e532579\\\\skills\\\\ui-ux-pro-max\" | ForEach-Object { $_.FullName + \" [\" + $_.GetType\\(\\).Name + \"]\" })",
+      "Bash(npm create *)",
+      "Read(//c/Users/User/OneDrive/Desktop/**)",
+      "Bash(npx create-vite@latest \"Noble Trust Bank\" --template react-ts)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "mcp__Claude_Preview__preview_start"
+    ]
+  }
+}
