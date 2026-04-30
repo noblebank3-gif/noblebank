@@ -5,6 +5,7 @@ import {
   ChevronRight, Check, LogOut, Trash2, Key, Smartphone,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
+import { authService } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
@@ -20,8 +21,10 @@ interface ToggleProps {
 
 const Toggle = ({ checked, onChange, disabled }: ToggleProps) => (
   <button
+    type="button"
     role="switch"
-    aria-checked={checked}
+    aria-checked={checked ? 'true' : 'false'}
+    aria-label={checked ? 'Enabled' : 'Disabled'}
     onClick={() => !disabled && onChange(!checked)}
     disabled={disabled}
     className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-gold-500/50 focus-visible:outline-none ${
@@ -35,12 +38,7 @@ const Toggle = ({ checked, onChange, disabled }: ToggleProps) => (
 );
 
 const SettingRow = ({
-  icon: Icon,
-  label,
-  description,
-  right,
-  onClick,
-  danger = false,
+  icon: Icon, label, description, right, onClick, danger = false,
 }: {
   icon: React.ElementType;
   label: string;
@@ -50,14 +48,13 @@ const SettingRow = ({
   danger?: boolean;
 }) => (
   <button
+    type="button"
     onClick={onClick}
     className={`w-full flex items-center gap-4 px-5 py-4 transition-colors duration-150 text-left ${
       onClick ? (danger ? 'hover:bg-red-500/5' : 'hover:bg-surface-elevated') : 'cursor-default'
     }`}
   >
-    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-      danger ? 'bg-red-500/10' : 'bg-surface-elevated'
-    }`}>
+    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${danger ? 'bg-red-500/10' : 'bg-surface-elevated'}`}>
       <Icon className={`w-4 h-4 ${danger ? 'text-red-400' : 'text-slate-400'}`} />
     </div>
     <div className="flex-1 min-w-0">
@@ -71,14 +68,11 @@ const SettingRow = ({
 );
 
 export const SettingsPage = () => {
-  const { user, logout } = useAuthStore();
+  const { user, logout, updateUser } = useAuthStore();
   const navigate = useNavigate();
 
-  const [notifications, setNotifications] = useState(user?.notifications ?? true);
-  const [twoFactor,     setTwoFactor]     = useState(user?.twoFactor ?? true);
-  const [darkMode,      setDarkMode]      = useState(true);
-  const [mktEmails,     setMktEmails]     = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving]           = useState(false);
+  const [savingToggle, setSavingToggle] = useState<string | null>(null);
 
   const [profile, setProfile] = useState({
     firstName: user?.firstName ?? '',
@@ -87,11 +81,43 @@ export const SettingsPage = () => {
     phone:     user?.phone     ?? '',
   });
 
+  const [notifications, setNotifications] = useState(user?.notifications ?? true);
+  const [twoFactor,     setTwoFactor]     = useState(user?.twoFactor     ?? false);
+  const [darkMode]                        = useState(true);
+  const [mktEmails,     setMktEmails]     = useState(false);
+
   const handleSaveProfile = async () => {
     setSaving(true);
-    await new Promise(r => setTimeout(r, 1200));
-    setSaving(false);
-    toast.success('Profile updated', 'Your changes have been saved');
+    try {
+      const updated = await authService.updateProfile({
+        firstName: profile.firstName,
+        lastName:  profile.lastName,
+        phone:     profile.phone,
+      });
+      updateUser(updated);
+      toast.success('Profile updated', 'Your changes have been saved');
+    } catch (err: unknown) {
+      toast.error('Save failed', err instanceof Error ? err.message : 'Please try again');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggle = async (field: 'notifications' | 'twoFactor', value: boolean) => {
+    if (field === 'notifications') setNotifications(value);
+    if (field === 'twoFactor')     setTwoFactor(value);
+    setSavingToggle(field);
+    try {
+      const updated = await authService.updateProfile({ [field]: value });
+      updateUser(updated);
+    } catch {
+      // Revert on failure
+      if (field === 'notifications') setNotifications(!value);
+      if (field === 'twoFactor')     setTwoFactor(!value);
+      toast.error('Update failed', 'Could not save preference');
+    } finally {
+      setSavingToggle(null);
+    }
   };
 
   const handleLogout = async () => {
@@ -109,7 +135,13 @@ export const SettingsPage = () => {
           icon: Bell,
           label: 'Push notifications',
           description: 'Transaction alerts and account activity',
-          right: <Toggle checked={notifications} onChange={setNotifications} />,
+          right: (
+            <Toggle
+              checked={notifications}
+              onChange={v => handleToggle('notifications', v)}
+              disabled={savingToggle === 'notifications'}
+            />
+          ),
         },
         {
           icon: Globe,
@@ -130,20 +162,24 @@ export const SettingsPage = () => {
           right: (
             <div className="flex items-center gap-2">
               {twoFactor && <Badge variant="success" dot>Active</Badge>}
-              <Toggle checked={twoFactor} onChange={setTwoFactor} />
+              <Toggle
+                checked={twoFactor}
+                onChange={v => handleToggle('twoFactor', v)}
+                disabled={savingToggle === 'twoFactor'}
+              />
             </div>
           ),
         },
         {
           icon: Key,
           label: 'Change password',
-          description: 'Last changed 3 months ago',
+          description: 'Update your account password',
           onClick: () => toast.info('Change password', 'Feature coming soon'),
         },
         {
           icon: Smartphone,
           label: 'Active sessions',
-          description: '2 devices logged in',
+          description: 'Manage devices logged in to your account',
           onClick: () => toast.info('Sessions', 'Feature coming soon'),
         },
       ],
@@ -156,7 +192,7 @@ export const SettingsPage = () => {
           icon: Moon,
           label: 'Dark mode',
           description: 'Always on for Noble Trust Bank',
-          right: <Toggle checked={darkMode} onChange={setDarkMode} disabled />,
+          right: <Toggle checked={darkMode} onChange={() => {}} disabled />,
         },
         {
           icon: Globe,
@@ -180,7 +216,7 @@ export const SettingsPage = () => {
         {
           icon: LogOut,
           label: 'Sign out',
-          description: 'Log out from all devices',
+          description: 'Log out from this device',
           onClick: handleLogout,
           danger: true,
         },
@@ -209,7 +245,6 @@ export const SettingsPage = () => {
         transition={{ duration: 0.35 }}
         className="card p-6 space-y-6"
       >
-        {/* Avatar + tier */}
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-full bg-gradient-gold flex items-center justify-center">
             <span className="text-navy-900 text-xl font-bold">
@@ -217,17 +252,16 @@ export const SettingsPage = () => {
             </span>
           </div>
           <div>
-            <p className="text-lg font-bold text-white">
-              {user?.firstName} {user?.lastName}
-            </p>
+            <p className="text-lg font-bold text-white">{user?.firstName} {user?.lastName}</p>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant="gold">{user?.tier?.toUpperCase()} CLIENT</Badge>
-              <p className="text-xs text-slate-500">Member since 2022</p>
+              <p className="text-xs text-slate-500">
+                Member since {user?.joinedAt ? new Date(user.joinedAt).getFullYear() : '—'}
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Profile fields */}
         <div className="grid grid-cols-2 gap-4">
           <Input
             label="First name"
@@ -245,6 +279,7 @@ export const SettingsPage = () => {
             value={profile.email}
             onChange={e => setProfile(p => ({ ...p, email: e.target.value }))}
             className="col-span-2"
+            disabled
           />
           <Input
             label="Phone number"
@@ -275,9 +310,7 @@ export const SettingsPage = () => {
           className="card overflow-hidden"
         >
           <div className="px-5 py-3.5 border-b border-surface-border">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              {section.title}
-            </p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{section.title}</p>
           </div>
           <div className="divide-y divide-surface-border">
             {section.items.map((item) => (

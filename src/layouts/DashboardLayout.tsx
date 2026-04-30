@@ -1,24 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, ArrowLeftRight, CreditCard,
   BarChart3, Settings, LogOut, Shield, Bell,
-  Menu, X, ChevronRight,
+  Menu, X, ChevronRight, CheckCheck,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useAccountStore } from '@/store/accountStore';
+import { notificationService } from '@/services/api';
 import { cn, getInitials } from '@/lib/utils';
 import { toast } from '@/components/ui/Toast';
-
-const navItems = [
-  { path: '/dashboard',              label: 'Overview',     icon: LayoutDashboard },
-  { path: '/dashboard/transactions', label: 'Transactions', icon: ArrowLeftRight  },
-  { path: '/dashboard/transfer',     label: 'Transfer',     icon: ArrowLeftRight  },
-  { path: '/dashboard/cards',        label: 'Cards',        icon: CreditCard      },
-  { path: '/dashboard/analytics',    label: 'Analytics',    icon: BarChart3       },
-  { path: '/dashboard/settings',     label: 'Settings',     icon: Settings        },
-];
+import type { Notification } from '@/types';
 
 const navItemsDisplay = [
   { path: '/dashboard',              label: 'Overview',     icon: LayoutDashboard },
@@ -28,16 +21,54 @@ const navItemsDisplay = [
   { path: '/dashboard/settings',     label: 'Settings',     icon: Settings        },
 ];
 
+const NOTIF_ICONS: Record<Notification['type'], string> = {
+  success: 'bg-emerald-500/10 text-emerald-400',
+  info:    'bg-blue-500/10 text-blue-400',
+  warning: 'bg-amber-500/10 text-amber-400',
+  alert:   'bg-red-500/10 text-red-400',
+};
+
 export const DashboardLayout = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
-  const { fetchAccounts }  = useAccountStore();
+  const { user, logout }    = useAuthStore();
+  const { fetchAccounts }   = useAccountStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [notifOpen,  setNotifOpen]  = useState(false);
+  const [notifOpen,   setNotifOpen]   = useState(false);
+  const [notifs,      setNotifs]      = useState<Notification[]>([]);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
 
   useEffect(() => {
-    fetchAccounts();
-  }, [fetchAccounts]);
+    notificationService.getNotifications()
+      .then(setNotifs)
+      .catch(() => {});
+  }, []);
+
+  // Close notif panel on outside click
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [notifOpen]);
+
+  const unreadCount = notifs.filter(n => !n.read).length;
+
+  const handleMarkRead = async (id: string) => {
+    await notificationService.markRead(id);
+    setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
+
+  const handleMarkAllRead = async () => {
+    const unread = notifs.filter(n => !n.read);
+    await Promise.all(unread.map(n => notificationService.markRead(n.id)));
+    setNotifs(prev => prev.map(n => ({ ...n, read: true })));
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -46,11 +77,7 @@ export const DashboardLayout = () => {
   };
 
   const Sidebar = ({ mobile = false }: { mobile?: boolean }) => (
-    <nav className={cn(
-      'flex flex-col h-full',
-      mobile ? 'px-4 py-6' : 'px-4 py-8',
-    )}>
-      {/* Logo */}
+    <nav className={cn('flex flex-col h-full', mobile ? 'px-4 py-6' : 'px-4 py-8')}>
       <div className="flex items-center gap-3 px-2 mb-10">
         <div className="w-9 h-9 rounded-xl bg-gradient-gold flex items-center justify-center shrink-0">
           <Shield className="w-4 h-4 text-navy-900" />
@@ -61,7 +88,6 @@ export const DashboardLayout = () => {
         </div>
       </div>
 
-      {/* Nav items */}
       <div className="flex-1 space-y-1">
         <p className="label-text px-2 mb-3">Main menu</p>
         {navItemsDisplay.map((item) => (
@@ -108,7 +134,6 @@ export const DashboardLayout = () => {
         </NavLink>
       </div>
 
-      {/* User area */}
       <div className="border-t border-surface-border pt-4 mt-4">
         <div className="flex items-center gap-3 px-2 mb-3">
           <div className="w-9 h-9 rounded-full bg-gradient-gold flex items-center justify-center shrink-0">
@@ -117,13 +142,12 @@ export const DashboardLayout = () => {
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">
-              {user?.firstName} {user?.lastName}
-            </p>
+            <p className="text-sm font-medium text-white truncate">{user?.firstName} {user?.lastName}</p>
             <p className="text-xs text-gold-500 capitalize">{user?.tier} Client</p>
           </div>
         </div>
         <button
+          type="button"
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:text-red-400 hover:bg-red-500/5 transition-all duration-150"
         >
@@ -142,6 +166,7 @@ export const DashboardLayout = () => {
       >
         Skip to main content
       </a>
+
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-64 shrink-0 flex-col bg-surface-card border-r border-surface-border">
         <Sidebar />
@@ -152,21 +177,18 @@ export const DashboardLayout = () => {
         {sidebarOpen && (
           <>
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
               onClick={() => setSidebarOpen(false)}
             />
             <motion.aside
-              initial={{ x: -280 }}
-              animate={{ x: 0 }}
-              exit={{ x: -280 }}
+              initial={{ x: -280 }} animate={{ x: 0 }} exit={{ x: -280 }}
               transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
               className="fixed left-0 top-0 bottom-0 w-72 bg-surface-card border-r border-surface-border z-50 lg:hidden"
             >
               <button
+                type="button"
                 onClick={() => setSidebarOpen(false)}
                 className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white"
                 aria-label="Close sidebar"
@@ -184,6 +206,7 @@ export const DashboardLayout = () => {
         {/* Top bar */}
         <header className="h-16 border-b border-surface-border bg-surface-card/50 backdrop-blur-sm sticky top-0 z-30 flex items-center justify-between px-4 sm:px-6">
           <button
+            type="button"
             className="lg:hidden p-2 text-slate-400 hover:text-white transition-colors"
             onClick={() => setSidebarOpen(true)}
             aria-label="Open menu"
@@ -193,14 +216,87 @@ export const DashboardLayout = () => {
           <div className="hidden lg:block" />
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setNotifOpen(o => !o)}
-              className="relative p-2 text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-surface-elevated"
-              aria-label="Notifications"
-            >
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-gold-500 rounded-full" />
-            </button>
+            {/* Notification bell */}
+            <div className="relative" ref={notifRef}>
+              <button
+                type="button"
+                onClick={() => setNotifOpen(o => !o)}
+                className="relative p-2 text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-surface-elevated"
+                aria-label="Notifications"
+              >
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-gold-500 rounded-full" />
+                )}
+              </button>
+
+              <AnimatePresence>
+                {notifOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-12 w-80 bg-surface-card border border-surface-border rounded-2xl shadow-card-lg z-50 overflow-hidden"
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-surface-border">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-white">Notifications</p>
+                        {unreadCount > 0 && (
+                          <span className="bg-gold-500/20 text-gold-500 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                            {unreadCount}
+                          </span>
+                        )}
+                      </div>
+                      {unreadCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleMarkAllRead}
+                          className="flex items-center gap-1 text-xs text-slate-400 hover:text-gold-500 transition-colors"
+                        >
+                          <CheckCheck className="w-3 h-3" />
+                          Mark all read
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Notification list */}
+                    <div className="max-h-80 overflow-y-auto divide-y divide-surface-border">
+                      {notifs.length === 0 ? (
+                        <div className="py-10 text-center text-slate-500 text-sm">
+                          No notifications
+                        </div>
+                      ) : (
+                        notifs.map(n => (
+                          <button
+                            type="button"
+                            key={n.id}
+                            onClick={() => handleMarkRead(n.id)}
+                            className={cn(
+                              'w-full text-left flex items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-elevated',
+                              !n.read && 'bg-gold-500/3',
+                            )}
+                          >
+                            <span className={cn('w-2 h-2 rounded-full mt-1.5 shrink-0', NOTIF_ICONS[n.type].split(' ')[0], 'bg-current')} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className={cn('text-xs font-semibold truncate', n.read ? 'text-slate-300' : 'text-white')}>
+                                  {n.title}
+                                </p>
+                                {!n.read && <span className="w-1.5 h-1.5 rounded-full bg-gold-500 shrink-0" />}
+                              </div>
+                              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{n.message}</p>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             <div className="w-9 h-9 rounded-full bg-gradient-gold flex items-center justify-center">
               <span className="text-navy-900 text-xs font-bold">
                 {user ? getInitials(user.firstName, user.lastName) : 'U'}

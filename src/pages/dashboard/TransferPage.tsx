@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight, CheckCircle, XCircle, Copy, RotateCcw,
-  Building2, User, DollarSign, FileText, AlertCircle,
+  Building2, User, DollarSign, FileText, AlertCircle, RefreshCw,
 } from 'lucide-react';
 import { useAccountStore } from '@/store/accountStore';
 import { useTransferStore } from '@/store/transferStore';
@@ -39,16 +39,18 @@ export const TransferPage = () => {
   const { accounts } = useAccountStore();
   const { status, reference, error, initiateTransfer, reset } = useTransferStore();
 
-  const [step, setStep] = useState<Step>('form');
+  const [step, setStep]           = useState<Step>('form');
+  const [ownAccount, setOwnAccount] = useState(false);
   const [form, setForm] = useState({
-    fromAccountId: accounts[0]?.id ?? '',
+    fromAccountId:   accounts[0]?.id ?? '',
+    toAccountId:     '',
     toAccountNumber: '',
-    toBankName: '',
-    toName: '',
-    amount: '',
-    currency: 'USD' as Currency,
-    description: '',
-    reference: '',
+    toBankName:      'Noble Trust Bank',
+    toName:          '',
+    amount:          '',
+    currency:        'USD' as Currency,
+    description:     '',
+    reference:       '',
   });
   const [errors, setErrors] = useState<Partial<typeof form>>({});
 
@@ -57,6 +59,39 @@ export const TransferPage = () => {
       setForm(f => ({ ...f, fromAccountId: accounts[0].id }));
     }
   }, [accounts]);
+
+  // When switching to own-account mode, pre-fill destination fields
+  const handleOwnAccountToggle = (value: boolean) => {
+    setOwnAccount(value);
+    if (value) {
+      const dest = accounts.find(a => a.id !== form.fromAccountId);
+      if (dest) {
+        setForm(f => ({
+          ...f,
+          toAccountId:     dest.id,
+          toAccountNumber: dest.accountNumber,
+          toBankName:      'Noble Trust Bank',
+          toName:          dest.name,
+        }));
+      }
+    } else {
+      setForm(f => ({ ...f, toAccountId: '', toAccountNumber: '', toBankName: 'Noble Trust Bank', toName: '' }));
+    }
+    setErrors({});
+  };
+
+  // When own-account destination changes, sync fields
+  const handleDestAccountChange = (destId: string) => {
+    const dest = accounts.find(a => a.id === destId);
+    if (!dest) return;
+    setForm(f => ({
+      ...f,
+      toAccountId:     dest.id,
+      toAccountNumber: dest.accountNumber,
+      toBankName:      'Noble Trust Bank',
+      toName:          dest.name,
+    }));
+  };
 
   useEffect(() => {
     if (status === 'success') setStep('success');
@@ -100,7 +135,8 @@ export const TransferPage = () => {
   const handleReset = () => {
     reset();
     setStep('form');
-    setForm(f => ({ ...f, toAccountNumber: '', toBankName: '', toName: '', amount: '', description: '', reference: '' }));
+    setOwnAccount(false);
+    setForm(f => ({ ...f, toAccountId: '', toAccountNumber: '', toBankName: 'Noble Trust Bank', toName: '', amount: '', description: '', reference: '' }));
     setErrors({});
   };
 
@@ -181,32 +217,61 @@ export const TransferPage = () => {
               </div>
 
               <div className="space-y-4">
-                <h2 className="text-base font-semibold text-white">To</h2>
-                <Input
-                  label="Recipient name"
-                  value={form.toName}
-                  onChange={e => setForm(f => ({ ...f, toName: e.target.value }))}
-                  leftIcon={<User className="w-4 h-4" />}
-                  placeholder="John Smith"
-                  error={errors.toName}
-                  required
-                />
-                <Input
-                  label="Account / IBAN number"
-                  value={form.toAccountNumber}
-                  onChange={e => setForm(f => ({ ...f, toAccountNumber: e.target.value }))}
-                  leftIcon={<Building2 className="w-4 h-4" />}
-                  placeholder="GB29NWBK60161331926819"
-                  error={errors.toAccountNumber}
-                  required
-                />
-                <Select
-                  label="Recipient bank"
-                  value={form.toBankName}
-                  onChange={e => setForm(f => ({ ...f, toBankName: e.target.value }))}
-                  options={[{ value: '', label: 'Select bank…' }, ...bankOptions]}
-                  error={errors.toBankName}
-                />
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base font-semibold text-white">To</h2>
+                  <button
+                    type="button"
+                    onClick={() => handleOwnAccountToggle(!ownAccount)}
+                    className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-all duration-150 ${
+                      ownAccount
+                        ? 'bg-gold-500/10 text-gold-500 border-gold-500/30'
+                        : 'bg-surface-elevated text-slate-400 border-surface-border hover:text-white'
+                    }`}
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    {ownAccount ? 'Own account' : 'Transfer to own account'}
+                  </button>
+                </div>
+
+                {ownAccount ? (
+                  <Select
+                    label="Destination account"
+                    value={form.toAccountId}
+                    onChange={e => handleDestAccountChange(e.target.value)}
+                    options={accounts
+                      .filter(a => a.id !== form.fromAccountId)
+                      .map(a => ({ value: a.id, label: `${a.name} — ${formatCurrency(a.balance, a.currency)} ${a.accountNumber}` }))}
+                    error={errors.toAccountNumber}
+                  />
+                ) : (
+                  <>
+                    <Input
+                      label="Recipient name"
+                      value={form.toName}
+                      onChange={e => setForm(f => ({ ...f, toName: e.target.value }))}
+                      leftIcon={<User className="w-4 h-4" />}
+                      placeholder="John Smith"
+                      error={errors.toName}
+                      required
+                    />
+                    <Input
+                      label="Account / IBAN number"
+                      value={form.toAccountNumber}
+                      onChange={e => setForm(f => ({ ...f, toAccountNumber: e.target.value }))}
+                      leftIcon={<Building2 className="w-4 h-4" />}
+                      placeholder="GB29NWBK60161331926819"
+                      error={errors.toAccountNumber}
+                      required
+                    />
+                    <Select
+                      label="Recipient bank"
+                      value={form.toBankName}
+                      onChange={e => setForm(f => ({ ...f, toBankName: e.target.value }))}
+                      options={[{ value: '', label: 'Select bank…' }, ...bankOptions]}
+                      error={errors.toBankName}
+                    />
+                  </>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">

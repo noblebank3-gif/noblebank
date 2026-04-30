@@ -112,15 +112,16 @@ export const DashboardPage = () => {
   const {
     accounts, transactions, selectedAccountId,
     isLoadingAccounts, isLoadingTransactions,
-    selectAccount, fetchTransactions, getTotalBalance,
+    selectAccount, fetchTransactions, getTotalBalance, getMonthlyStats,
   } = useAccountStore();
 
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
 
-  const recentTxns = transactions.slice(0, 6);
+  const recentTxns   = transactions.slice(0, 6);
   const totalBalance = getTotalBalance();
+  const { income: monthlyIncome, spend: monthlySpend } = getMonthlyStats();
 
   const getGreeting = () => {
     const h = new Date().getHours();
@@ -176,29 +177,26 @@ export const DashboardPage = () => {
             />
             <StatCard
               label="Monthly Income"
-              value={formatCurrency(43_500)}
+              value={formatCurrency(monthlyIncome)}
               icon={<ArrowDownLeft className="w-5 h-5 text-emerald-400" />}
               iconBg="bg-emerald-500/10"
-              change={12}
-              changeLabel="vs last month"
+              changeLabel="this month"
               delay={0.05}
             />
             <StatCard
               label="Monthly Spend"
-              value={formatCurrency(19_570)}
+              value={formatCurrency(monthlySpend)}
               icon={<ArrowUpRight className="w-5 h-5 text-blue-400" />}
               iconBg="bg-blue-500/10"
-              change={-8.3}
-              changeLabel="vs last month"
+              changeLabel="this month"
               delay={0.1}
             />
             <StatCard
-              label="Portfolio Growth"
-              value="+18.4%"
+              label="Active Accounts"
+              value={String(accounts.length)}
               icon={<TrendingUp className="w-5 h-5 text-purple-400" />}
               iconBg="bg-purple-500/10"
-              change={2.1}
-              changeLabel="vs last quarter"
+              changeLabel="across all currencies"
               delay={0.15}
             />
           </>
@@ -211,7 +209,7 @@ export const DashboardPage = () => {
         <div className="lg:col-span-2 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="section-title">My Accounts</h2>
-            <button className="text-xs text-gold-500 hover:text-gold-400 transition-colors flex items-center gap-1">
+            <button type="button" className="text-xs text-gold-500 hover:text-gold-400 transition-colors flex items-center gap-1">
               Manage <ExternalLink className="w-3 h-3" />
             </button>
           </div>

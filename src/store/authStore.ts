@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { User } from '@/types';
 import { supabase } from '@/lib/supabase';
-import { authService } from '@/services/api';
+import { authService, seedUserData } from '@/services/api';
 
 interface AuthState {
   user: User | null;
@@ -13,6 +13,7 @@ interface AuthState {
   login:      (email: string, password: string) => Promise<void>;
   signup:     (payload: Partial<User> & { password: string }) => Promise<void>;
   logout:     () => Promise<void>;
+  updateUser: (updates: Partial<User>) => void;
   clearError: () => void;
   hydrate:    () => Promise<void>;
 }
@@ -38,6 +39,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const { user } = await authService.signup(payload);
+      // Seed accounts, cards, and welcome notifications for the new user
+      await seedUserData(user.id, user.firstName, user.lastName);
       set({ user, isAuthenticated: true, isLoading: false });
     } catch (err: unknown) {
       set({ error: err instanceof Error ? err.message : 'Signup failed', isLoading: false });
@@ -49,6 +52,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     await authService.logout();
     set({ user: null, isAuthenticated: false, isLoading: false });
   },
+
+  updateUser: (updates) =>
+    set(state => ({ user: state.user ? { ...state.user, ...updates } : null })),
 
   clearError: () => set({ error: null }),
 
