@@ -10,8 +10,8 @@ import { toast } from '@/components/ui/Toast';
 export const LoginPage = () => {
   const navigate   = useNavigate();
   const { login, isLoading, error, clearError } = useAuthStore();
-  const [email, setEmail]       = useState('client@nobletrust.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail]       = useState('');
+  const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
