@@ -34,6 +34,7 @@ export interface User {
   notifications: boolean;
   twoFactor: boolean;
   country: string;
+  isAdmin?: boolean;
 }
 
 export interface Account {
@@ -77,6 +78,8 @@ export interface Card {
   userId: string;
   network: CardNetwork;
   last4: string;
+  demoCardNumber?: string;
+  demoCvv?: string;
   expiryMonth: string;
   expiryYear: string;
   holderName: string;
@@ -120,4 +123,10 @@ export interface Notification {
   type: 'info' | 'success' | 'warning' | 'alert';
   read: boolean;
   date: string;
+}
+
+export interface AdminUserSummary extends User {
+  accountCount: number;
+  totalBalance: number;
+  lastActivity?: string;
 }

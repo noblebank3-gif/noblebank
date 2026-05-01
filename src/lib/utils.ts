@@ -40,5 +40,7 @@ export function maskAccountNumber(num: string): string {
 }
 
 export function getInitials(firstName: string, lastName: string): string {
-  return `${firstName[0]}${lastName[0]}`.toUpperCase();
+  const first = firstName.trim()[0] ?? '';
+  const last = lastName.trim()[0] ?? '';
+  return `${first}${last}`.toUpperCase() || 'U';
 }

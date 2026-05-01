@@ -93,6 +93,30 @@ export const TransferPage = () => {
     }));
   };
 
+  const handleSourceAccountChange = (sourceId: string) => {
+    setForm(f => {
+      const next = { ...f, fromAccountId: sourceId };
+      if (!ownAccount || f.toAccountId !== sourceId) return next;
+
+      const dest = accounts.find(a => a.id !== sourceId);
+      return dest
+        ? {
+            ...next,
+            toAccountId:     dest.id,
+            toAccountNumber: dest.accountNumber,
+            toBankName:      'Noble Trust Bank',
+            toName:          dest.name,
+          }
+        : {
+            ...next,
+            toAccountId:     '',
+            toAccountNumber: '',
+            toBankName:      'Noble Trust Bank',
+            toName:          '',
+          };
+    });
+  };
+
   useEffect(() => {
     if (status === 'success') setStep('success');
     if (status === 'error')   setStep('error');
@@ -109,6 +133,8 @@ export const TransferPage = () => {
       e.amount = 'Enter a valid amount';
     if (fromAccount && Number(form.amount) > fromAccount.balance)
       e.amount = 'Insufficient balance';
+    if (ownAccount && form.toAccountId === form.fromAccountId)
+      e.toAccountNumber = 'Choose a different destination account';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -200,7 +226,7 @@ export const TransferPage = () => {
                 <Select
                   label="Source account"
                   value={form.fromAccountId}
-                  onChange={e => setForm(f => ({ ...f, fromAccountId: e.target.value }))}
+                  onChange={e => handleSourceAccountChange(e.target.value)}
                   options={accountOptions}
                 />
               </div>

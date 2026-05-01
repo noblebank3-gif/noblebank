@@ -24,3 +24,15 @@ export const GuestGuard = () => {
   if (isHydrating) return <Spinner />;
   return isAuthenticated ? <Navigate to="/dashboard" replace /> : <Outlet />;
 };
+
+export const AdminGuard = () => {
+  const { isAuthenticated, isHydrating, user } = useAuthStore(s => ({
+    isAuthenticated: s.isAuthenticated,
+    isHydrating:     s.isHydrating,
+    user:            s.user,
+  }));
+
+  if (isHydrating) return <Spinner />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return user?.isAdmin ? <Outlet /> : <Navigate to="/dashboard" replace />;
+};

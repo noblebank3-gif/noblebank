@@ -1,8 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { lazy, Suspense, useEffect } from 'react';
 import { ToastContainer } from '@/components/ui/Toast';
-import { AuthGuard, GuestGuard } from '@/components/guards/AuthGuard';
+import { AdminGuard, AuthGuard, GuestGuard } from '@/components/guards/AuthGuard';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
+import { AdminLayout } from '@/layouts/AdminLayout';
 import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/lib/supabase';
 
@@ -15,6 +16,7 @@ const TransferPage     = lazy(() => import('@/pages/dashboard/TransferPage').the
 const CardsPage        = lazy(() => import('@/pages/dashboard/CardsPage').then(m => ({ default: m.CardsPage })));
 const AnalyticsPage    = lazy(() => import('@/pages/dashboard/AnalyticsPage').then(m => ({ default: m.AnalyticsPage })));
 const SettingsPage     = lazy(() => import('@/pages/dashboard/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const AdminDashboardPage = lazy(() => import('@/pages/admin/AdminDashboardPage').then(m => ({ default: m.AdminDashboardPage })));
 
 const PageLoader = () => (
   <div className="min-h-dvh flex items-center justify-center bg-surface">
@@ -61,6 +63,13 @@ function App() {
               <Route path="cards"           element={<CardsPage />}        />
               <Route path="analytics"       element={<AnalyticsPage />}    />
               <Route path="settings"        element={<SettingsPage />}     />
+            </Route>
+          </Route>
+
+          <Route element={<AdminGuard />}>
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<AdminDashboardPage />} />
+              <Route path="users" element={<AdminDashboardPage />} />
             </Route>
           </Route>
 

@@ -59,7 +59,7 @@ const CardVisual = ({
     {/* Card number */}
     <div className="z-10 relative">
       <p className="font-mono text-white text-lg tracking-widest">
-        {showNumber ? `4532 8871 2109 ${card.last4}` : `•••• •••• •••• ${card.last4}`}
+        {showNumber ? card.demoCardNumber ?? `**** **** **** ${card.last4}` : `•••• •••• •••• ${card.last4}`}
       </p>
     </div>
 

@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import type {
   User, Account, Transaction, Card,
-  TransferPayload, AnalyticsData, SpendingCategory, Notification,
+  TransferPayload, AnalyticsData, SpendingCategory, Notification, AdminUserSummary,
 } from '@/types';
 
 // ── Row mappers (snake_case DB → camelCase TS) ─────────────────────────────
@@ -19,6 +19,7 @@ function mapProfile(r: any): User {
     notifications: r.notifications,
     twoFactor:     r.two_factor,
     country:       r.country ?? '',
+    isAdmin:       r.is_admin ?? false,
   };
 }
 
@@ -72,6 +73,8 @@ function mapCard(r: any): Card {
     userId:         r.user_id,
     network:        r.network,
     last4:          r.last4,
+    demoCardNumber: r.demo_card_number,
+    demoCvv:        r.demo_cvv,
     expiryMonth:    r.expiry_month,
     expiryYear:     r.expiry_year,
     holderName:     r.holder_name,
@@ -96,6 +99,16 @@ function mapNotification(r: any): Notification {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapAdminUser(r: any): AdminUserSummary {
+  return {
+    ...mapProfile(r),
+    accountCount: Number(r.account_count ?? 0),
+    totalBalance: Number(r.total_balance ?? 0),
+    lastActivity: r.last_activity ?? undefined,
+  };
+}
+
 // ── Auth ───────────────────────────────────────────────────────────────────
 export const authService = {
   login: async (email: string, password: string) => {
@@ -113,7 +126,7 @@ export const authService = {
     const { data, error } = await supabase.auth.signUp({
       email:    payload.email!,
       password: payload.password,
-      options:  { data: { first_name: payload.firstName, last_name: payload.lastName } },
+      options:  { data: { first_name: payload.firstName, last_name: payload.lastName, phone: payload.phone } },
     });
     if (error) throw new Error(error.message);
     if (!data.user) throw new Error('Signup failed');
@@ -339,6 +352,50 @@ export const notificationService = {
   },
 };
 
+// Admin
+export const adminService = {
+  getUsers: async (): Promise<AdminUserSummary[]> => {
+    const { data, error } = await supabase.rpc('admin_get_users');
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapAdminUser);
+  },
+
+  getUserAccounts: async (userId: string): Promise<Account[]> => {
+    const { data, error } = await supabase.rpc('admin_get_user_accounts', {
+      p_user_id: userId,
+    });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapAccount);
+  },
+
+  getUserTransactions: async (userId: string, limit = 50): Promise<Transaction[]> => {
+    const { data, error } = await supabase.rpc('admin_get_user_transactions', {
+      p_user_id: userId,
+      p_limit: limit,
+    });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapTransaction);
+  },
+
+  getUserCards: async (userId: string): Promise<Card[]> => {
+    const { data, error } = await supabase.rpc('admin_get_user_cards', {
+      p_user_id: userId,
+    });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(mapCard);
+  },
+
+  updateAccountBalance: async (accountId: string, balance: number, note?: string): Promise<Account> => {
+    const { data, error } = await supabase.rpc('admin_update_account_balance', {
+      p_account_id: accountId,
+      p_balance: balance,
+      p_note: note ?? null,
+    });
+    if (error) throw new Error(error.message);
+    return mapAccount(data);
+  },
+};
+
 // ── Onboarding seed (runs once after signup) ───────────────────────────────
 export const seedUserData = async (
   userId: string,
@@ -357,26 +414,30 @@ export const seedUserData = async (
     ])
     .select();
 
-  if (accErr || !accounts?.length) return;
+  if (accErr) throw new Error(accErr.message);
+  if (!accounts?.length) throw new Error('Failed to create starter accounts');
 
   const checkingId = accounts[0].id;
 
-  await supabase.from('cards').insert([
-    { account_id: checkingId, user_id: userId, network: 'visa',       last4: '4821', expiry_month: '09', expiry_year: '27', holder_name: holderName, status: 'active', type: 'debit',   spend_limit: 50_000,  spent_this_month: 0, is_virtual: false, color: 'navy'  },
-    { account_id: checkingId, user_id: userId, network: 'mastercard', last4: '7209', expiry_month: '03', expiry_year: '26', holder_name: holderName, status: 'active', type: 'credit',  spend_limit: 100_000, spent_this_month: 0, is_virtual: false, color: 'gold'  },
-    { account_id: checkingId, user_id: userId, network: 'visa',       last4: '3391', expiry_month: '11', expiry_year: '27', holder_name: holderName, status: 'frozen', type: 'debit',                         spent_this_month: 0, is_virtual: true,  color: 'slate' },
+  const { error: cardErr } = await supabase.from('cards').insert([
+    { account_id: checkingId, user_id: userId, network: 'visa',       last4: '4821', demo_card_number: '4111 1111 1111 4821', demo_cvv: '321', expiry_month: '09', expiry_year: '27', holder_name: holderName, status: 'active', type: 'debit',   spend_limit: 50_000,  spent_this_month: 0, is_virtual: false, color: 'navy'  },
+    { account_id: checkingId, user_id: userId, network: 'mastercard', last4: '7209', demo_card_number: '5555 5555 5555 7209', demo_cvv: '884', expiry_month: '03', expiry_year: '26', holder_name: holderName, status: 'active', type: 'credit',  spend_limit: 100_000, spent_this_month: 0, is_virtual: false, color: 'gold'  },
+    { account_id: checkingId, user_id: userId, network: 'visa',       last4: '3391', demo_card_number: '4000 0000 0000 3391', demo_cvv: '107', expiry_month: '11', expiry_year: '27', holder_name: holderName, status: 'frozen', type: 'debit',                         spent_this_month: 0, is_virtual: true,  color: 'slate' },
   ]);
+  if (cardErr) throw new Error(cardErr.message);
 
-  await supabase.from('transactions').insert([
+  const { error: txnErr } = await supabase.from('transactions').insert([
     { account_id: checkingId, user_id: userId, type: 'credit', category: 'salary',   amount: 18_500, currency: 'USD', description: 'Monthly Salary',           merchant: 'Employer',        status: 'completed', reference: 'SAL-INIT', date: new Date(new Date().setDate(1)).toISOString(),  processed_at: new Date(new Date().setDate(1)).toISOString() },
     { account_id: checkingId, user_id: userId, type: 'debit',  category: 'payment',  amount: 340,    currency: 'USD', description: 'Equinox Membership',        merchant: 'Equinox',         status: 'completed', reference: 'PMT-INIT', date: new Date(new Date().setDate(5)).toISOString(),  processed_at: new Date(new Date().setDate(5)).toISOString() },
     { account_id: checkingId, user_id: userId, type: 'debit',  category: 'utilities',amount: 420,    currency: 'USD', description: 'Electricity Bill',          merchant: 'ConEdison',       status: 'completed', reference: 'UTL-INIT', date: new Date(new Date().setDate(7)).toISOString(),  processed_at: new Date(new Date().setDate(7)).toISOString() },
     { account_id: checkingId, user_id: userId, type: 'debit',  category: 'shopping', amount: 1_200,  currency: 'USD', description: 'Online Shopping',           merchant: 'Amazon',          status: 'completed', reference: 'SHP-INIT', date: new Date(new Date().setDate(10)).toISOString(), processed_at: new Date(new Date().setDate(10)).toISOString() },
     { account_id: checkingId, user_id: userId, type: 'credit', category: 'deposit',  amount: 5_000,  currency: 'USD', description: 'Bank Transfer Received',    merchant: 'Noble Trust Bank',status: 'completed', reference: 'DEP-INIT', date: new Date(new Date().setDate(15)).toISOString(), processed_at: new Date(new Date().setDate(15)).toISOString() },
   ]);
+  if (txnErr) throw new Error(txnErr.message);
 
-  await supabase.from('notifications').insert([
+  const { error: notifErr } = await supabase.from('notifications').insert([
     { user_id: userId, title: 'Welcome to Noble Trust Bank', message: 'Your private banking account is ready. Explore your dashboard to get started.', type: 'success', read: false },
     { user_id: userId, title: 'Accounts Created',            message: '4 accounts have been set up: Checking, Savings, Investment, and GBP.',          type: 'info',    read: false },
   ]);
+  if (notifErr) throw new Error(notifErr.message);
 };

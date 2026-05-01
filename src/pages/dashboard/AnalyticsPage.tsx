@@ -52,12 +52,16 @@ export const AnalyticsPage = () => {
 
   const latestMonth   = analytics[analytics.length - 1];
   const prevMonth     = analytics[analytics.length - 2];
-  const incomeChange  = latestMonth && prevMonth
+  const incomeChange  = latestMonth && prevMonth && prevMonth.income !== 0
     ? ((latestMonth.income  - prevMonth.income)  / prevMonth.income  * 100).toFixed(1)
     : '0';
-  const expenseChange = latestMonth && prevMonth
+  const expenseChange = latestMonth && prevMonth && prevMonth.expenses !== 0
     ? ((latestMonth.expenses - prevMonth.expenses) / prevMonth.expenses * 100).toFixed(1)
     : '0';
+
+  const savingsRate = latestMonth?.income
+    ? `${((latestMonth.savings / latestMonth.income) * 100).toFixed(0)}%`
+    : '0%';
 
   const axisStyle = { fill: '#64748b', fontSize: 11 };
 
@@ -108,9 +112,7 @@ export const AnalyticsPage = () => {
               },
               {
                 label: 'Savings Rate',
-                value: latestMonth
-                  ? `${((latestMonth.savings / latestMonth.income) * 100).toFixed(0)}%`
-                  : '—',
+                value: savingsRate,
                 change: 'of income',
                 positive: true,
                 icon: <PieIcon className="w-5 h-5 text-blue-400" />,

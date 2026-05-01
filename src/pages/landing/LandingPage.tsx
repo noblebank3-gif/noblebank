@@ -191,10 +191,10 @@ const Hero = () => (
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <p className="text-slate-500 text-xs">Good morning,</p>
-                  <p className="text-white font-semibold">David Onilude</p>
+                  <p className="text-white font-semibold">Noble Client</p>
                 </div>
                 <div className="w-9 h-9 rounded-full bg-gradient-gold flex items-center justify-center">
-                  <span className="text-navy-900 text-xs font-bold">DO</span>
+                  <span className="text-navy-900 text-xs font-bold">NC</span>
                 </div>
               </div>
 

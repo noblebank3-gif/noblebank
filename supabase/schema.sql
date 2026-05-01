@@ -14,6 +14,7 @@ create table if not exists public.profiles (
   tier          text not null default 'standard' check (tier in ('standard', 'premium', 'private')),
   notifications boolean not null default true,
   two_factor    boolean not null default false,
+  is_admin      boolean not null default false,
   country       text,
   joined_at     timestamptz not null default now()
 );
@@ -65,6 +66,8 @@ create table if not exists public.cards (
   user_id          uuid references public.profiles(id) on delete cascade not null,
   network          text not null check (network in ('visa', 'mastercard')),
   last4            text not null,
+  demo_card_number text,
+  demo_cvv         text,
   expiry_month     text not null,
   expiry_year      text not null,
   holder_name      text not null,
@@ -103,6 +106,7 @@ create policy "profiles: update own"  on public.profiles for update using (auth.
 
 -- accounts
 create policy "accounts: select own"  on public.accounts for select using (auth.uid() = user_id);
+create policy "accounts: insert own"  on public.accounts for insert with check (auth.uid() = user_id);
 create policy "accounts: update own"  on public.accounts for update using (auth.uid() = user_id);
 
 -- transactions
@@ -111,6 +115,7 @@ create policy "transactions: insert own" on public.transactions for insert with 
 
 -- cards
 create policy "cards: select own"  on public.cards for select using (auth.uid() = user_id);
+create policy "cards: insert own"  on public.cards for insert with check (auth.uid() = user_id);
 create policy "cards: update own"  on public.cards for update using (auth.uid() = user_id);
 
 -- notifications
@@ -124,12 +129,13 @@ create policy "notifications: insert own" on public.notifications for insert wit
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, first_name, last_name, email)
+  insert into public.profiles (id, first_name, last_name, email, phone)
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'first_name', ''),
     coalesce(new.raw_user_meta_data->>'last_name', ''),
-    new.email
+    new.email,
+    new.raw_user_meta_data->>'phone'
   );
   return new;
 end;
@@ -154,8 +160,17 @@ create or replace function public.execute_transfer(
 ) returns text as $$
 declare
   v_from_balance numeric;
+  v_to_user_id   uuid;
   v_ref          text;
 begin
+  if p_amount <= 0 then
+    raise exception 'Transfer amount must be positive';
+  end if;
+
+  if p_from_account_id = p_to_account_id then
+    raise exception 'Source and destination accounts must be different';
+  end if;
+
   -- Verify ownership and lock the from-account row
   select balance into v_from_balance
   from public.accounts
@@ -168,6 +183,14 @@ begin
 
   if v_from_balance < p_amount then
     raise exception 'Insufficient funds';
+  end if;
+
+  select user_id into v_to_user_id
+  from public.accounts
+  where id = p_to_account_id;
+
+  if v_to_user_id is null then
+    raise exception 'Destination account not found';
   end if;
 
   v_ref := coalesce(p_reference, 'TRF-' || extract(epoch from now())::bigint::text);
@@ -188,7 +211,7 @@ begin
   insert into public.transactions
     (account_id, user_id, type, category, amount, currency, description, status, reference, date, processed_at)
   values
-    (p_to_account_id, p_user_id, 'credit', 'transfer', p_amount, p_currency, p_description, 'completed', v_ref, now(), now());
+    (p_to_account_id, v_to_user_id, 'credit', 'transfer', p_amount, p_currency, p_description, 'completed', v_ref, now(), now());
 
   return v_ref;
 end;

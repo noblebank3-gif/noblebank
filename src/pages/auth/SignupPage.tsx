@@ -97,14 +97,14 @@ export const SignupPage = () => {
                 value={form.firstName}
                 onChange={update('firstName')}
                 leftIcon={<User className="w-4 h-4" />}
-                placeholder="David"
+                placeholder="First name"
                 required
               />
               <Input
                 label="Last name"
                 value={form.lastName}
                 onChange={update('lastName')}
-                placeholder="Onilude"
+                placeholder="Last name"
                 required
               />
             </div>
