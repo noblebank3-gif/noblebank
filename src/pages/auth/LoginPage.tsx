@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { toast } from '@/components/ui/Toast';
+import { supabase } from '@/lib/supabase';
 
 export const LoginPage = () => {
   const navigate   = useNavigate();
@@ -18,10 +19,25 @@ export const LoginPage = () => {
     e.preventDefault();
     clearError();
     await login(email, password);
-    const { isAuthenticated } = useAuthStore.getState();
+    const { isAuthenticated, user } = useAuthStore.getState();
     if (isAuthenticated) {
       toast.success('Welcome back', 'Logged in to Noble Trust Bank');
-      navigate('/dashboard');
+      navigate(user?.isAdmin ? '/admin' : '/dashboard');
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      toast.error('Enter your email', 'Type your email address above first');
+      return;
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) {
+      toast.error('Reset failed', error.message);
+    } else {
+      toast.success('Reset email sent', 'Check your inbox for the password reset link');
     }
   };
 
@@ -150,12 +166,12 @@ export const LoginPage = () => {
               autoComplete="current-password"
             />
 
-            <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center gap-2 text-slate-400 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 rounded border-surface-border accent-gold-500" />
-                Remember me
-              </label>
-              <button type="button" className="text-gold-500 hover:text-gold-400 transition-colors">
+            <div className="flex items-center justify-end text-sm">
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className="text-gold-500 hover:text-gold-400 transition-colors"
+              >
                 Forgot password?
               </button>
             </div>

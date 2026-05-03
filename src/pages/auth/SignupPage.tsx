@@ -160,21 +160,6 @@ export const SignupPage = () => {
               required
             />
 
-            <div className="bg-surface-elevated border border-surface-border rounded-xl p-4 space-y-2">
-              <p className="text-xs font-medium text-slate-300">Account type</p>
-              <div className="grid grid-cols-2 gap-2">
-                {['Standard', 'Premium'].map((tier) => (
-                  <button
-                    key={tier}
-                    type="button"
-                    className="card p-3 text-center text-sm text-slate-300 hover:text-white hover:border-gold-500/30 transition-all duration-150"
-                  >
-                    {tier}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div className="flex gap-3">
               <Button
                 type="button"

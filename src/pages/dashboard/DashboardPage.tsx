@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { AccountCardSkeleton, TransactionSkeleton, StatCardSkeleton } from '@/components/ui/Skeleton';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { CategoryIcon } from '@/lib/categoryIcons';
-import { useState } from 'react';
+import { toast } from '@/components/ui/Toast';
 import type { Account, Transaction } from '@/types';
 
 const AccountCard = ({ account, isSelected, onClick }: {
@@ -154,7 +154,11 @@ export const DashboardPage = () => {
               Send Money
             </Button>
           </Link>
-          <Button variant="secondary" leftIcon={<Plus className="w-4 h-4" />}>
+          <Button
+            variant="secondary"
+            leftIcon={<Plus className="w-4 h-4" />}
+            onClick={() => toast.info('Coming soon', 'Account creation will be available soon')}
+          >
             Add Account
           </Button>
         </div>

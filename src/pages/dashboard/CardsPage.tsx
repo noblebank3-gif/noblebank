@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import {
   Snowflake, Eye, EyeOff, MoreHorizontal, Lock, Unlock,
   Globe, CreditCard as CardIcon, Shield, Plus, AlertTriangle,
+  FileText,
 } from 'lucide-react';
 import { useCardStore } from '@/store/cardStore';
 import { Button } from '@/components/ui/Button';
@@ -10,6 +12,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { formatCurrency } from '@/lib/utils';
+import { toast } from '@/components/ui/Toast';
 import type { Card } from '@/types';
 
 const CARD_COLORS = {
@@ -90,6 +93,7 @@ const CardVisual = ({
 
 const CardItem = ({ card }: { card: Card }) => {
   const { toggleFreeze, togglingId } = useCardStore();
+  const navigate = useNavigate();
   const [showNumber, setShowNumber] = useState(false);
   const [showMenu, setShowMenu]     = useState(false);
   const [freezeModal, setFreezeModal] = useState(false);
@@ -156,13 +160,25 @@ const CardItem = ({ card }: { card: Card }) => {
                     className="absolute right-0 top-10 w-44 bg-surface-card border border-surface-border rounded-xl shadow-card-lg z-20 overflow-hidden"
                   >
                     {[
-                      { label: 'View statements', icon: CardIcon },
-                      { label: 'Set spend limit',  icon: Shield   },
-                      { label: 'Virtual card',     icon: Globe    },
+                      {
+                        label: 'View statements',
+                        icon: FileText,
+                        action: () => { setShowMenu(false); navigate('/dashboard/transactions'); },
+                      },
+                      {
+                        label: 'Set spend limit',
+                        icon: Shield,
+                        action: () => { setShowMenu(false); toast.info('Coming soon', 'Spend limit management will be available soon'); },
+                      },
+                      {
+                        label: 'Virtual card',
+                        icon: Globe,
+                        action: () => { setShowMenu(false); toast.info('Coming soon', 'Virtual card creation will be available soon'); },
+                      },
                     ].map(item => (
                       <button
                         key={item.label}
-                        onClick={() => setShowMenu(false)}
+                        onClick={item.action}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-300 hover:text-white hover:bg-surface-elevated transition-colors"
                       >
                         <item.icon className="w-4 h-4 text-slate-500" />
@@ -264,7 +280,11 @@ export const CardsPage = () => {
           <h1 className="text-2xl font-bold text-white">My Cards</h1>
           <p className="text-slate-400 text-sm mt-0.5">Manage your debit and credit cards</p>
         </div>
-        <Button variant="gold" leftIcon={<Plus className="w-4 h-4" />}>
+        <Button
+          variant="gold"
+          leftIcon={<Plus className="w-4 h-4" />}
+          onClick={() => toast.info('Coming soon', 'Card issuance will be available soon')}
+        >
           Add Card
         </Button>
       </div>

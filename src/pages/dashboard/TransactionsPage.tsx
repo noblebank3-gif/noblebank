@@ -112,6 +112,33 @@ export const TransactionsPage = () => {
   const totalCredit  = filtered.filter(t => t.type === 'credit').reduce((s, t) => s + t.amount, 0);
   const totalDebit   = filtered.filter(t => t.type === 'debit' ).reduce((s, t) => s + t.amount, 0);
 
+  const handleExportCSV = () => {
+    if (!filtered.length) return;
+    const escape = (v: string | number | undefined) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const headers = ['Date', 'Description', 'Merchant', 'Type', 'Category', 'Amount', 'Currency', 'Status', 'Reference', 'Counterparty', 'Counterparty Bank'];
+    const rows = filtered.map(t => [
+      new Date(t.date).toLocaleDateString('en-GB'),
+      t.description,
+      t.merchant ?? '',
+      t.type,
+      t.category,
+      (t.type === 'debit' ? -t.amount : t.amount).toFixed(2),
+      t.currency,
+      t.status,
+      t.reference,
+      t.counterparty ?? '',
+      t.counterpartyBank ?? '',
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(escape).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `noble-trust-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6 max-w-5xl">
       {/* Header */}
@@ -120,7 +147,12 @@ export const TransactionsPage = () => {
           <h1 className="text-2xl font-bold text-white">Transactions</h1>
           <p className="text-slate-400 text-sm mt-0.5">{filtered.length} transactions found</p>
         </div>
-        <Button variant="secondary" leftIcon={<Download className="w-4 h-4" />}>
+        <Button
+          variant="secondary"
+          leftIcon={<Download className="w-4 h-4" />}
+          onClick={handleExportCSV}
+          disabled={filtered.length === 0}
+        >
           Export CSV
         </Button>
       </div>
