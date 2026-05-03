@@ -25,7 +25,7 @@ const PageLoader = () => (
 );
 
 function App() {
-  const { hydrate, login, logout } = useAuthStore();
+  const { hydrate, login, markSignedOut } = useAuthStore();
 
   useEffect(() => {
     // Restore session on first load
@@ -33,7 +33,7 @@ function App() {
 
     // Keep Zustand in sync when Supabase session changes (other tabs, expiry)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') logout();
+      if (event === 'SIGNED_OUT') markSignedOut();
       if (event === 'SIGNED_IN')  hydrate();
     });
 

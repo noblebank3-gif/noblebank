@@ -13,6 +13,7 @@ interface AuthState {
   login:      (email: string, password: string) => Promise<void>;
   signup:     (payload: Partial<User> & { password: string }) => Promise<void>;
   logout:     () => Promise<void>;
+  markSignedOut: () => void;
   updateUser: (updates: Partial<User>) => void;
   clearError: () => void;
   hydrate:    () => Promise<void>;
@@ -48,10 +49,16 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
-    set({ isLoading: true });
-    await authService.logout();
-    set({ user: null, isAuthenticated: false, isLoading: false });
+    set({ isLoading: true, error: null });
+    try {
+      await authService.logout();
+    } finally {
+      set({ user: null, isAuthenticated: false, isLoading: false, isHydrating: false });
+    }
   },
+
+  markSignedOut: () =>
+    set({ user: null, isAuthenticated: false, isLoading: false, isHydrating: false }),
 
   updateUser: (updates) =>
     set(state => ({ user: state.user ? { ...state.user, ...updates } : null })),
