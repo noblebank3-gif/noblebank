@@ -171,8 +171,7 @@ export const DashboardPage = () => {
               value={formatCurrency(totalBalance, 'USD', true)}
               icon={<Wallet className="w-5 h-5 text-gold-500" />}
               iconBg="bg-gold-500/10"
-              change={4.2}
-              changeLabel="this month"
+              changeLabel="across all accounts"
               delay={0}
             />
             <StatCard

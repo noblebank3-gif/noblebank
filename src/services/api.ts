@@ -421,14 +421,24 @@ export const seedUserData = async (
   lastName: string,
 ): Promise<void> => {
   const holderName = `${firstName.toUpperCase()} ${lastName.toUpperCase()}`;
+  const rand = () => Math.floor(Math.random() * 9_000_000_000 + 1_000_000_000).toString();
+  const [chkNum, savNum, invNum, gbpNum] = [rand(), rand(), rand(), rand()];
+  const randCard = (prefix: string) => {
+    const suffix = Math.floor(Math.random() * 9000 + 1000).toString();
+    return { last4: suffix, full: `${prefix} ${suffix}` };
+  };
+  const visaDebit   = randCard('4111 1111 1111');
+  const mcCredit    = randCard('5555 5555 5555');
+  const visaVirtual = randCard('4000 0000 0000');
+  const cvv = () => Math.floor(Math.random() * 900 + 100).toString();
 
   const { data: accounts, error: accErr } = await supabase
     .from('accounts')
     .insert([
-      { user_id: userId, name: 'Private Checking',    type: 'checking',   balance: 10_000,  currency: 'USD', account_number: '3109624821', routing_number: '021000021', is_default: true  },
-      { user_id: userId, name: 'Wealth Savings',      type: 'savings',    balance: 50_000,  currency: 'USD', account_number: '4821773400', routing_number: '021000021', is_default: false },
-      { user_id: userId, name: 'Investment Portfolio', type: 'investment', balance: 25_000,  currency: 'USD', account_number: '7291229100', routing_number: '021000021', is_default: false },
-      { user_id: userId, name: 'GBP Account',         type: 'foreign',    balance: 5_000,   currency: 'GBP', account_number: '5512123456', iban: 'GB29NWBK60161331926819', swift: 'NOBLGB2L', routing_number: '', is_default: false },
+      { user_id: userId, name: 'Private Checking',     type: 'checking',   balance: 0, currency: 'USD', account_number: chkNum, routing_number: '021000021', is_default: true  },
+      { user_id: userId, name: 'Wealth Savings',       type: 'savings',    balance: 0, currency: 'USD', account_number: savNum, routing_number: '021000021', is_default: false },
+      { user_id: userId, name: 'Investment Portfolio', type: 'investment', balance: 0, currency: 'USD', account_number: invNum, routing_number: '021000021', is_default: false },
+      { user_id: userId, name: 'GBP Account',          type: 'foreign',    balance: 0, currency: 'GBP', account_number: gbpNum, iban: `GB${gbpNum.slice(0, 20)}`, swift: 'NOBLGB2L', routing_number: '', is_default: false },
     ])
     .select();
 
@@ -438,24 +448,15 @@ export const seedUserData = async (
   const checkingId = accounts[0].id;
 
   const { error: cardErr } = await supabase.from('cards').insert([
-    { account_id: checkingId, user_id: userId, network: 'visa',       last4: '4821', demo_card_number: '4111 1111 1111 4821', demo_cvv: '321', expiry_month: '09', expiry_year: '27', holder_name: holderName, status: 'active', type: 'debit',   spend_limit: 50_000,  spent_this_month: 0, is_virtual: false, color: 'navy'  },
-    { account_id: checkingId, user_id: userId, network: 'mastercard', last4: '7209', demo_card_number: '5555 5555 5555 7209', demo_cvv: '884', expiry_month: '03', expiry_year: '26', holder_name: holderName, status: 'active', type: 'credit',  spend_limit: 100_000, spent_this_month: 0, is_virtual: false, color: 'gold'  },
-    { account_id: checkingId, user_id: userId, network: 'visa',       last4: '3391', demo_card_number: '4000 0000 0000 3391', demo_cvv: '107', expiry_month: '11', expiry_year: '27', holder_name: holderName, status: 'frozen', type: 'debit',                         spent_this_month: 0, is_virtual: true,  color: 'slate' },
+    { account_id: checkingId, user_id: userId, network: 'visa',       last4: visaDebit.last4,   demo_card_number: visaDebit.full,   demo_cvv: cvv(), expiry_month: '09', expiry_year: '27', holder_name: holderName, status: 'active', type: 'debit',  spend_limit: 50_000,  spent_this_month: 0, is_virtual: false, color: 'navy'  },
+    { account_id: checkingId, user_id: userId, network: 'mastercard', last4: mcCredit.last4,    demo_card_number: mcCredit.full,    demo_cvv: cvv(), expiry_month: '03', expiry_year: '26', holder_name: holderName, status: 'active', type: 'credit', spend_limit: 100_000, spent_this_month: 0, is_virtual: false, color: 'gold'  },
+    { account_id: checkingId, user_id: userId, network: 'visa',       last4: visaVirtual.last4, demo_card_number: visaVirtual.full, demo_cvv: cvv(), expiry_month: '11', expiry_year: '27', holder_name: holderName, status: 'frozen', type: 'debit',                        spent_this_month: 0, is_virtual: true,  color: 'slate' },
   ]);
   if (cardErr) throw new Error(cardErr.message);
 
-  const { error: txnErr } = await supabase.from('transactions').insert([
-    { account_id: checkingId, user_id: userId, type: 'credit', category: 'salary',   amount: 18_500, currency: 'USD', description: 'Monthly Salary',           merchant: 'Employer',        status: 'completed', reference: 'SAL-INIT', date: new Date(new Date().setDate(1)).toISOString(),  processed_at: new Date(new Date().setDate(1)).toISOString() },
-    { account_id: checkingId, user_id: userId, type: 'debit',  category: 'payment',  amount: 340,    currency: 'USD', description: 'Equinox Membership',        merchant: 'Equinox',         status: 'completed', reference: 'PMT-INIT', date: new Date(new Date().setDate(5)).toISOString(),  processed_at: new Date(new Date().setDate(5)).toISOString() },
-    { account_id: checkingId, user_id: userId, type: 'debit',  category: 'utilities',amount: 420,    currency: 'USD', description: 'Electricity Bill',          merchant: 'ConEdison',       status: 'completed', reference: 'UTL-INIT', date: new Date(new Date().setDate(7)).toISOString(),  processed_at: new Date(new Date().setDate(7)).toISOString() },
-    { account_id: checkingId, user_id: userId, type: 'debit',  category: 'shopping', amount: 1_200,  currency: 'USD', description: 'Online Shopping',           merchant: 'Amazon',          status: 'completed', reference: 'SHP-INIT', date: new Date(new Date().setDate(10)).toISOString(), processed_at: new Date(new Date().setDate(10)).toISOString() },
-    { account_id: checkingId, user_id: userId, type: 'credit', category: 'deposit',  amount: 5_000,  currency: 'USD', description: 'Bank Transfer Received',    merchant: 'Noble Trust Bank',status: 'completed', reference: 'DEP-INIT', date: new Date(new Date().setDate(15)).toISOString(), processed_at: new Date(new Date().setDate(15)).toISOString() },
-  ]);
-  if (txnErr) throw new Error(txnErr.message);
-
   const { error: notifErr } = await supabase.from('notifications').insert([
     { user_id: userId, title: 'Welcome to Noble Trust Bank', message: 'Your private banking account is ready. Explore your dashboard to get started.', type: 'success', read: false },
-    { user_id: userId, title: 'Accounts Created',            message: '4 accounts have been set up: Checking, Savings, Investment, and GBP.',          type: 'info',    read: false },
+    { user_id: userId, title: 'Accounts Created',            message: '4 accounts have been set up: Checking, Savings, Investment, and GBP — all starting at $0.',          type: 'info', read: false },
   ]);
   if (notifErr) throw new Error(notifErr.message);
 };
