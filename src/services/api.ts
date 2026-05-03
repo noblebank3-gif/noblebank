@@ -131,8 +131,19 @@ export const authService = {
     if (error) throw new Error(error.message);
     if (!data.user) throw new Error('Signup failed');
 
+    // If no session, email confirmation is ON — try signing in immediately
+    if (!data.session) {
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email:    payload.email!,
+        password: payload.password,
+      });
+      if (signInErr) {
+        throw new Error('Account created! Please confirm your email then sign in.');
+      }
+    }
+
     // Wait for the trigger to create the profile row
-    await new Promise(res => setTimeout(res, 800));
+    await new Promise(res => setTimeout(res, 1200));
 
     const { data: profile, error: pErr } = await supabase
       .from('profiles').select('*').eq('id', data.user.id).single();
@@ -221,24 +232,31 @@ export const transferService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Unauthenticated');
 
-    // Look up destination account by the last 4 digits of its account_number
-    const last4 = payload.toAccountNumber.replace(/\*/g, '').trim();
-    const { data: toAccounts } = await supabase
-      .from('accounts')
-      .select('id')
-      .ilike('account_number', `%${last4}`);
+    // Own-account transfer: toAccountId is provided — use atomic RPC directly
+    if (payload.toAccountId) {
+      const { data: ref, error } = await supabase.rpc('execute_transfer', {
+        p_from_account_id: payload.fromAccountId,
+        p_to_account_id:   payload.toAccountId,
+        p_user_id:         user.id,
+        p_amount:          payload.amount,
+        p_currency:        payload.currency,
+        p_description:     payload.description || 'Own account transfer',
+        p_reference:       payload.reference ?? null,
+      });
+      if (error) throw new Error(error.message);
+      return { reference: ref as string, status: 'completed' };
+    }
 
-    const toAccount = toAccounts?.[0];
-    if (!toAccount) throw new Error('Destination account not found');
-
-    const { data: ref, error } = await supabase.rpc('execute_transfer', {
-      p_from_account_id: payload.fromAccountId,
-      p_to_account_id:   toAccount.id,
-      p_user_id:         user.id,
-      p_amount:          payload.amount,
-      p_currency:        payload.currency,
-      p_description:     payload.description,
-      p_reference:       payload.reference ?? null,
+    // External transfer: debit source + create outgoing transaction record
+    const { data: ref, error } = await supabase.rpc('execute_external_transfer', {
+      p_from_account_id:   payload.fromAccountId,
+      p_user_id:           user.id,
+      p_amount:            payload.amount,
+      p_currency:          payload.currency,
+      p_description:       payload.description || 'Bank Transfer',
+      p_reference:         payload.reference ?? null,
+      p_counterparty:      payload.toName,
+      p_counterparty_bank: payload.toBankName,
     });
     if (error) throw new Error(error.message);
     return { reference: ref as string, status: 'completed' };

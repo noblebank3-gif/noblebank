@@ -93,6 +93,7 @@ export interface Card {
 
 export interface TransferPayload {
   fromAccountId: string;
+  toAccountId?: string;
   toAccountNumber: string;
   toBankName: string;
   toName: string;

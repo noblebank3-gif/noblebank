@@ -30,6 +30,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const { user } = await authService.login(email, password);
+      // Seed starter data if this user confirmed email before seeding ran
+      const { count } = await supabase.from('accounts').select('*', { count: 'exact', head: true });
+      if ((count ?? 0) === 0) {
+        await seedUserData(user.id, user.firstName, user.lastName);
+      }
       set({ user, isAuthenticated: true, isLoading: false });
     } catch (err: unknown) {
       set({ error: err instanceof Error ? err.message : 'Login failed', isLoading: false });

@@ -36,7 +36,7 @@ const BANKS = [
 ];
 
 export const TransferPage = () => {
-  const { accounts } = useAccountStore();
+  const { accounts, fetchAccounts, fetchTransactions } = useAccountStore();
   const { status, reference, error, initiateTransfer, reset } = useTransferStore();
 
   const [step, setStep]           = useState<Step>('form');
@@ -147,15 +147,18 @@ export const TransferPage = () => {
   const handleSend = async () => {
     setStep('processing');
     await initiateTransfer({
-      fromAccountId: form.fromAccountId,
+      fromAccountId:   form.fromAccountId,
+      toAccountId:     form.toAccountId || undefined,
       toAccountNumber: form.toAccountNumber,
-      toBankName: form.toBankName,
-      toName: form.toName,
-      amount: Number(form.amount),
-      currency: form.currency,
-      description: form.description || 'Bank Transfer',
-      reference: form.reference,
+      toBankName:      form.toBankName,
+      toName:          form.toName,
+      amount:          Number(form.amount),
+      currency:        form.currency,
+      description:     form.description || 'Bank Transfer',
+      reference:       form.reference,
     });
+    // Refresh balances and transactions after transfer attempt
+    await Promise.all([fetchAccounts(), fetchTransactions()]);
   };
 
   const handleReset = () => {
