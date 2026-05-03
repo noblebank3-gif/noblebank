@@ -71,11 +71,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   clearError: () => set({ error: null }),
 
   hydrate: async () => {
-    set({ isHydrating: true });
+    // Only show the full-page spinner on the very first load (not already authenticated)
+    set(s => ({ isHydrating: !s.isAuthenticated }));
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        set({ isHydrating: false });
+        set({ user: null, isAuthenticated: false, isHydrating: false });
         return;
       }
       const user = await authService.getMe();

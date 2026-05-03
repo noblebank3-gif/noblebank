@@ -226,7 +226,7 @@ export const TransactionsPage = () => {
           <p className="label-text text-right">Amount</p>
         </div>
 
-        {isLoadingTransactions ? (
+        {isLoadingTransactions && transactions.length === 0 ? (
           Array.from({ length: 6 }).map((_, i) => <TransactionSkeleton key={i} />)
         ) : filtered.length > 0 ? (
           filtered.map((txn, i) => (

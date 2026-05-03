@@ -162,7 +162,7 @@ export const DashboardPage = () => {
 
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {isLoadingAccounts ? (
+        {isLoadingAccounts && accounts.length === 0 ? (
           Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)
         ) : (
           <>
@@ -213,7 +213,7 @@ export const DashboardPage = () => {
             </button>
           </div>
           <div className="space-y-3">
-            {isLoadingAccounts ? (
+            {isLoadingAccounts && accounts.length === 0 ? (
               Array.from({ length: 3 }).map((_, i) => <AccountCardSkeleton key={i} />)
             ) : (
               accounts.map((account) => (
@@ -241,7 +241,7 @@ export const DashboardPage = () => {
           </div>
 
           <div className="card divide-y divide-surface-border">
-            {isLoadingTransactions ? (
+            {isLoadingTransactions && transactions.length === 0 ? (
               Array.from({ length: 5 }).map((_, i) => <TransactionSkeleton key={i} />)
             ) : recentTxns.length > 0 ? (
               recentTxns.map((txn, i) => (
