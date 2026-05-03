@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   User, Bell, Shield, CreditCard, Globe, Moon,
@@ -79,12 +79,27 @@ export const SettingsPage = () => {
     lastName:  user?.lastName  ?? '',
     email:     user?.email     ?? '',
     phone:     user?.phone     ?? '',
+    country:   user?.country   ?? '',
   });
 
   const [notifications, setNotifications] = useState(user?.notifications ?? true);
   const [twoFactor,     setTwoFactor]     = useState(user?.twoFactor     ?? false);
   const [darkMode]                        = useState(true);
   const [mktEmails,     setMktEmails]     = useState(false);
+
+  // Sync form when user loads or updates in the store
+  useEffect(() => {
+    if (!user) return;
+    setProfile({
+      firstName: user.firstName,
+      lastName:  user.lastName,
+      email:     user.email,
+      phone:     user.phone ?? '',
+      country:   user.country ?? '',
+    });
+    setNotifications(user.notifications);
+    setTwoFactor(user.twoFactor);
+  }, [user]);
 
   const handleSaveProfile = async () => {
     setSaving(true);
@@ -93,6 +108,7 @@ export const SettingsPage = () => {
         firstName: profile.firstName,
         lastName:  profile.lastName,
         phone:     profile.phone,
+        country:   profile.country,
       });
       updateUser(updated);
       toast.success('Profile updated', 'Your changes have been saved');
@@ -286,7 +302,12 @@ export const SettingsPage = () => {
             type="tel"
             value={profile.phone}
             onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))}
-            className="col-span-2"
+          />
+          <Input
+            label="Country"
+            value={profile.country}
+            onChange={e => setProfile(p => ({ ...p, country: e.target.value }))}
+            placeholder="e.g. United States"
           />
         </div>
 
