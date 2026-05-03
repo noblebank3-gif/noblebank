@@ -2,63 +2,58 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Search, Users, Wallet, CreditCard, Activity, Save, RefreshCcw,
+  ArrowLeftRight, Phone, MapPin, X, ArrowUpRight, ArrowDownLeft,
+  ChevronLeft,
 } from 'lucide-react';
 import { adminService } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 import { Badge, statusBadge } from '@/components/ui/Badge';
 import { StatCard } from '@/components/ui/StatCard';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from '@/components/ui/Toast';
 import { formatCurrency, formatDate, getInitials } from '@/lib/utils';
 import type { Account, AdminUserSummary, Card, Transaction } from '@/types';
 
-type DetailState = {
-  accounts: Account[];
-  transactions: Transaction[];
-  cards: Card[];
-};
-
-const emptyDetail: DetailState = {
-  accounts: [],
-  transactions: [],
-  cards: [],
-};
+type Tab = 'accounts' | 'transactions' | 'cards';
+type MobileView = 'list' | 'detail';
+type DetailState = { accounts: Account[]; transactions: Transaction[]; cards: Card[] };
+const emptyDetail: DetailState = { accounts: [], transactions: [], cards: [] };
 
 export const AdminDashboardPage = () => {
-  const [users, setUsers] = useState<AdminUserSummary[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>('');
-  const [detail, setDetail] = useState<DetailState>(emptyDetail);
-  const [search, setSearch] = useState('');
-  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [users, setUsers]               = useState<AdminUserSummary[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [detail, setDetail]             = useState<DetailState>(emptyDetail);
+  const [search, setSearch]             = useState('');
+  const [activeTab, setActiveTab]       = useState<Tab>('accounts');
+  const [mobileView, setMobileView]     = useState<MobileView>('list');
+  const [isLoadingUsers, setIsLoadingUsers]   = useState(true);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [savingAccountId, setSavingAccountId] = useState<string | null>(null);
-  const [balances, setBalances] = useState<Record<string, string>>({});
+  const [balances, setBalances]         = useState<Record<string, string>>({});
 
   const selectedUser = users.find(u => u.id === selectedUserId);
 
   const filteredUsers = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return users;
-    return users.filter(user => [
-      user.firstName,
-      user.lastName,
-      user.email,
-      user.phone,
-      user.country,
-    ].some(value => value?.toLowerCase().includes(term)));
+    return users.filter(u =>
+      [u.firstName, u.lastName, u.email, u.phone, u.country]
+        .some(v => v?.toLowerCase().includes(term)),
+    );
   }, [users, search]);
 
-  const totalCustomers = users.filter(user => !user.isAdmin).length;
-  const totalBalance = users.reduce((sum, user) => sum + user.totalBalance, 0);
-  const totalAccounts = users.reduce((sum, user) => sum + user.accountCount, 0);
+  const totalCustomers = users.filter(u => !u.isAdmin).length;
+  const totalBalance   = users.reduce((s, u) => s + u.totalBalance, 0);
+  const totalAccounts  = users.reduce((s, u) => s + u.accountCount, 0);
 
   const loadUsers = async () => {
     setIsLoadingUsers(true);
     try {
-      const nextUsers = await adminService.getUsers();
-      setUsers(nextUsers);
-      setSelectedUserId(current => current || nextUsers.find(user => !user.isAdmin)?.id || nextUsers[0]?.id || '');
-    } catch (error) {
-      toast.error('Admin data unavailable', error instanceof Error ? error.message : 'Unable to load users');
+      const data = await adminService.getUsers();
+      setUsers(data);
+      setSelectedUserId(cur => cur || data.find(u => !u.isAdmin)?.id || data[0]?.id || '');
+    } catch (err) {
+      toast.error('Failed to load users', err instanceof Error ? err.message : '');
     } finally {
       setIsLoadingUsers(false);
     }
@@ -70,13 +65,13 @@ export const AdminDashboardPage = () => {
     try {
       const [accounts, transactions, cards] = await Promise.all([
         adminService.getUserAccounts(userId),
-        adminService.getUserTransactions(userId, 25),
+        adminService.getUserTransactions(userId, 50),
         adminService.getUserCards(userId),
       ]);
       setDetail({ accounts, transactions, cards });
-      setBalances(Object.fromEntries(accounts.map(account => [account.id, String(account.balance)])));
-    } catch (error) {
-      toast.error('User data unavailable', error instanceof Error ? error.message : 'Unable to load user detail');
+      setBalances(Object.fromEntries(accounts.map(a => [a.id, String(a.balance)])));
+    } catch (err) {
+      toast.error('Failed to load user data', err instanceof Error ? err.message : '');
       setDetail(emptyDetail);
       setBalances({});
     } finally {
@@ -84,289 +79,476 @@ export const AdminDashboardPage = () => {
     }
   };
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
+  useEffect(() => { loadUsers(); }, []);
+  useEffect(() => { if (selectedUserId) loadDetail(selectedUserId); }, [selectedUserId]);
 
-  useEffect(() => {
-    loadDetail(selectedUserId);
-  }, [selectedUserId]);
+  const selectUser = (userId: string) => {
+    setSelectedUserId(userId);
+    setMobileView('detail');
+    setActiveTab('accounts');
+  };
 
   const handleBalanceSave = async (account: Account) => {
-    const nextBalance = Number(balances[account.id]);
-    if (!Number.isFinite(nextBalance) || nextBalance < 0) {
+    const next = Number(balances[account.id]);
+    if (!Number.isFinite(next) || next < 0) {
       toast.error('Invalid balance', 'Enter a valid non-negative amount');
       return;
     }
-
     setSavingAccountId(account.id);
     try {
       const updated = await adminService.updateAccountBalance(
-        account.id,
-        nextBalance,
-        `Balance changed from ${formatCurrency(account.balance, account.currency)} to ${formatCurrency(nextBalance, account.currency)}`,
+        account.id, next,
+        `Balance changed from ${formatCurrency(account.balance, account.currency)} to ${formatCurrency(next, account.currency)}`,
       );
       setDetail(prev => ({
         ...prev,
-        accounts: prev.accounts.map(item => item.id === updated.id ? updated : item),
+        accounts: prev.accounts.map(a => a.id === updated.id ? updated : a),
       }));
       setBalances(prev => ({ ...prev, [updated.id]: String(updated.balance) }));
-      await loadUsers();
-      await loadDetail(selectedUserId);
-      toast.success('Balance updated', `${account.name} now shows ${formatCurrency(nextBalance, account.currency)}`);
-    } catch (error) {
-      toast.error('Update failed', error instanceof Error ? error.message : 'Unable to update balance');
+      await Promise.all([loadUsers(), loadDetail(selectedUserId)]);
+      toast.success('Balance updated', `${account.name}: ${formatCurrency(next, account.currency)}`);
+    } catch (err) {
+      toast.error('Update failed', err instanceof Error ? err.message : '');
     } finally {
       setSavingAccountId(null);
     }
   };
 
+  const tabs: { id: Tab; label: string; icon: React.ElementType; count: number }[] = [
+    { id: 'accounts',     label: 'Accounts',    icon: Wallet,         count: detail.accounts.length     },
+    { id: 'transactions', label: 'Transactions', icon: ArrowLeftRight, count: detail.transactions.length },
+    { id: 'cards',        label: 'Cards',        icon: CreditCard,     count: detail.cards.length        },
+  ];
+
   return (
-    <div className="max-w-7xl space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="max-w-7xl space-y-5">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Super Admin Dashboard</h1>
-          <p className="text-slate-400 text-sm mt-1">View every customer and update account balances.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-white">Admin Console</h1>
+          <p className="text-slate-400 text-sm mt-0.5">Manage customers and account balances</p>
         </div>
         <Button
           variant="secondary"
           leftIcon={<RefreshCcw className="w-4 h-4" />}
           onClick={loadUsers}
           isLoading={isLoadingUsers}
+          size="sm"
         >
-          Refresh
+          <span className="hidden sm:inline">Refresh</span>
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Global stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           label="Customers"
-          value={String(totalCustomers)}
+          value={isLoadingUsers ? '—' : String(totalCustomers)}
           icon={<Users className="w-5 h-5 text-gold-500" />}
           iconBg="bg-gold-500/10"
+          delay={0}
         />
         <StatCard
           label="Total Accounts"
-          value={String(totalAccounts)}
+          value={isLoadingUsers ? '—' : String(totalAccounts)}
           icon={<Wallet className="w-5 h-5 text-blue-400" />}
           iconBg="bg-blue-500/10"
           delay={0.05}
         />
         <StatCard
-          label="Total Balances"
-          value={formatCurrency(totalBalance, 'USD', true)}
+          label="AUM"
+          value={isLoadingUsers ? '—' : formatCurrency(totalBalance, 'USD', true)}
           icon={<Activity className="w-5 h-5 text-emerald-400" />}
           iconBg="bg-emerald-500/10"
           delay={0.1}
         />
         <StatCard
-          label="Selected Cards"
-          value={String(detail.cards.length)}
+          label="User Cards"
+          value={isLoadingDetail ? '—' : String(detail.cards.length)}
           icon={<CreditCard className="w-5 h-5 text-purple-400" />}
           iconBg="bg-purple-500/10"
           delay={0.15}
         />
       </div>
 
-      <div className="grid lg:grid-cols-12 gap-6">
-        <section className="lg:col-span-4 space-y-3">
-          <div className="card p-4 space-y-4">
-            <div>
-              <h2 className="section-title">Users</h2>
-              <p className="text-xs text-slate-500 mt-1">{filteredUsers.length} visible profiles</p>
-            </div>
+      {/* Main layout — two-column on lg+, single-panel on mobile */}
+      <div className="grid lg:grid-cols-12 gap-5">
+
+        {/* ── User List ─────────────────────────────────── */}
+        <aside className={`lg:col-span-4 flex-col gap-3 ${mobileView === 'detail' ? 'hidden lg:flex' : 'flex'}`}>
+          {/* Search */}
+          <div className="card p-3 space-y-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               <input
                 type="search"
                 value={search}
-                onChange={event => setSearch(event.target.value)}
-                placeholder="Search users"
-                className="w-full h-10 bg-surface-elevated border border-surface-border rounded-lg pl-10 pr-4 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-gold-500/40"
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by name, email, phone…"
+                className="w-full h-10 bg-surface-elevated border border-surface-border rounded-lg pl-10 pr-9 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-gold-500/40"
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
+            <p className="text-xs text-slate-500 pl-1">
+              {filteredUsers.length} of {users.length} users
+            </p>
           </div>
 
-          <div className="card divide-y divide-surface-border overflow-hidden">
+          {/* User rows */}
+          <div className="card overflow-hidden">
             {isLoadingUsers ? (
-              <div className="p-6 text-sm text-slate-400">Loading users...</div>
+              <div className="divide-y divide-surface-border">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="p-4 space-y-2.5">
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="w-9 h-9 rounded-full shrink-0" />
+                      <div className="flex-1 space-y-1.5">
+                        <Skeleton className="h-3.5 w-32" />
+                        <Skeleton className="h-3 w-44" />
+                      </div>
+                    </div>
+                    <Skeleton className="h-3 w-40 ml-12" />
+                  </div>
+                ))}
+              </div>
             ) : filteredUsers.length > 0 ? (
-              filteredUsers.map((user, index) => (
-                <motion.button
-                  key={user.id}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2, delay: index * 0.02 }}
-                  type="button"
-                  onClick={() => setSelectedUserId(user.id)}
-                  className={`w-full text-left p-4 transition-colors ${
-                    selectedUserId === user.id ? 'bg-gold-500/10' : 'hover:bg-surface-elevated'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-gold flex items-center justify-center shrink-0">
-                      <span className="text-navy-900 text-xs font-bold">
+              <div className="divide-y divide-surface-border lg:max-h-[62vh] lg:overflow-y-auto">
+                {filteredUsers.map((user, i) => (
+                  <motion.button
+                    key={user.id}
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.18, delay: i * 0.025 }}
+                    type="button"
+                    onClick={() => selectUser(user.id)}
+                    className={`w-full text-left px-4 py-3.5 transition-colors border-l-2 ${
+                      selectedUserId === user.id
+                        ? 'bg-gold-500/10 border-l-gold-500'
+                        : 'border-l-transparent hover:bg-surface-elevated'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
+                        user.isAdmin ? 'bg-red-500/20 text-red-300' : 'bg-gradient-gold text-navy-900'
+                      }`}>
                         {getInitials(user.firstName, user.lastName)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <p className="text-sm font-semibold text-white truncate">
+                            {user.firstName} {user.lastName}
+                          </p>
+                          {user.isAdmin && (
+                            <Badge variant="error" className="shrink-0 text-[10px]">Admin</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-2 pl-12">
+                      <span className="text-xs text-slate-500 capitalize">
+                        {user.tier} · {user.accountCount} acct{user.accountCount !== 1 ? 's' : ''}
+                      </span>
+                      <span className="text-xs font-mono text-gold-500">
+                        {formatCurrency(user.totalBalance, 'USD', true)}
                       </span>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-white truncate">{user.firstName} {user.lastName}</p>
-                        {user.isAdmin && <Badge variant="gold">Admin</Badge>}
-                      </div>
-                      <p className="text-xs text-slate-500 truncate">{user.email}</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 mt-3">
-                    <div>
-                      <p className="label-text">Accounts</p>
-                      <p className="text-sm text-slate-300 font-mono">{user.accountCount}</p>
-                    </div>
-                    <div>
-                      <p className="label-text">Balance</p>
-                      <p className="text-sm text-gold-500 font-mono">{formatCurrency(user.totalBalance, 'USD', true)}</p>
-                    </div>
-                  </div>
-                </motion.button>
-              ))
+                  </motion.button>
+                ))}
+              </div>
             ) : (
-              <div className="p-6 text-sm text-slate-500">No users match your search.</div>
+              <div className="py-12 text-center text-sm text-slate-500">
+                No users match your search
+              </div>
             )}
           </div>
-        </section>
+        </aside>
 
-        <section className="lg:col-span-8 space-y-6">
+        {/* ── Detail Panel ──────────────────────────────── */}
+        <section className={`lg:col-span-8 space-y-4 ${mobileView === 'list' ? 'hidden lg:block' : 'block'}`}>
           {selectedUser ? (
             <>
-              <div className="card p-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              {/* Mobile back button */}
+              <button
+                type="button"
+                onClick={() => setMobileView('list')}
+                className="lg:hidden flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors mb-1"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Back to users
+              </button>
+
+              {/* User profile card */}
+              <motion.div
+                key={selectedUser.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
+                className="card p-4 sm:p-5"
+              >
+                <div className="flex gap-4">
+                  <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shrink-0 text-base sm:text-lg font-bold ${
+                    selectedUser.isAdmin ? 'bg-red-500/20 text-red-300' : 'bg-gradient-gold text-navy-900'
+                  }`}>
+                    {getInitials(selectedUser.firstName, selectedUser.lastName)}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-lg sm:text-xl font-bold text-white leading-tight">
+                        {selectedUser.firstName} {selectedUser.lastName}
+                      </h2>
+                      <Badge variant={selectedUser.isAdmin ? 'error' : 'gold'}>
+                        {selectedUser.isAdmin ? 'Super Admin' : `${selectedUser.tier} Client`}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+                      <span className="text-xs sm:text-sm text-slate-400 truncate">{selectedUser.email}</span>
+                      {selectedUser.phone && (
+                        <span className="flex items-center gap-1 text-xs sm:text-sm text-slate-400">
+                          <Phone className="w-3.5 h-3.5 shrink-0" />
+                          {selectedUser.phone}
+                        </span>
+                      )}
+                      {selectedUser.country && (
+                        <span className="flex items-center gap-1 text-xs sm:text-sm text-slate-400">
+                          <MapPin className="w-3.5 h-3.5 shrink-0" />
+                          {selectedUser.country}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick stats row */}
+                <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-surface-border">
                   <div>
-                    <p className="label-text">Selected user</p>
-                    <h2 className="text-xl font-bold text-white mt-1">{selectedUser.firstName} {selectedUser.lastName}</h2>
-                    <p className="text-sm text-slate-400 mt-1">{selectedUser.email}</p>
+                    <p className="label-text">Accounts</p>
+                    <p className="text-xl font-bold text-white font-mono mt-0.5">
+                      {selectedUser.accountCount}
+                    </p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant={selectedUser.isAdmin ? 'gold' : 'neutral'}>
-                      {selectedUser.isAdmin ? 'Super Admin' : `${selectedUser.tier} Client`}
-                    </Badge>
-                    <Badge variant="info">{selectedUser.country || 'No country'}</Badge>
+                  <div>
+                    <p className="label-text">Total Balance</p>
+                    <p className="text-xl font-bold text-gold-500 font-mono mt-0.5">
+                      {formatCurrency(selectedUser.totalBalance, 'USD', true)}
+                    </p>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="space-y-3">
-                <h2 className="section-title">Accounts</h2>
-                <div className="card divide-y divide-surface-border overflow-hidden">
+              {/* Tabbed card */}
+              <div className="card overflow-hidden">
+                {/* Tab bar */}
+                <div className="flex border-b border-surface-border overflow-x-auto">
+                  {tabs.map(t => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setActiveTab(t.id)}
+                      className={`flex items-center gap-2 px-4 sm:px-5 py-3.5 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
+                        activeTab === t.id
+                          ? 'border-gold-500 text-gold-500'
+                          : 'border-transparent text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <t.icon className="w-4 h-4" />
+                      <span className="hidden sm:inline">{t.label}</span>
+                      <span className="sm:hidden">{t.label.slice(0, 4)}</span>
+                      <span className={`text-xs rounded-full px-1.5 py-0.5 font-mono min-w-[1.25rem] text-center ${
+                        activeTab === t.id
+                          ? 'bg-gold-500/20 text-gold-400'
+                          : 'bg-surface-elevated text-slate-500'
+                      }`}>
+                        {t.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Tab content */}
+                <div className="min-h-[240px]">
                   {isLoadingDetail ? (
-                    <div className="p-6 text-sm text-slate-400">Loading accounts...</div>
-                  ) : detail.accounts.length > 0 ? (
-                    detail.accounts.map(account => (
-                      <div key={account.id} className="p-4 grid grid-cols-1 xl:grid-cols-[1fr_220px_120px] gap-4 items-end">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold text-white">{account.name}</p>
-                            {account.isDefault && <Badge variant="gold">Default</Badge>}
+                    <div className="p-5 space-y-4">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-4">
+                          <Skeleton className="w-10 h-10 rounded-xl shrink-0" />
+                          <div className="flex-1 space-y-2">
+                            <Skeleton className="h-4 w-40" />
+                            <Skeleton className="h-3 w-56" />
                           </div>
-                          <p className="text-xs text-slate-500 mt-1">
-                            {account.type} • {account.accountNumber} • {account.currency}
-                          </p>
-                          <p className="text-lg text-gold-500 font-mono mt-2">
-                            {formatCurrency(account.balance, account.currency)}
-                          </p>
+                          <Skeleton className="h-9 w-20 rounded-lg shrink-0" />
                         </div>
-                        <label className="space-y-1.5">
-                          <span className="block text-sm font-medium text-slate-300">New balance</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={balances[account.id] ?? ''}
-                            onChange={event => setBalances(prev => ({ ...prev, [account.id]: event.target.value }))}
-                            className="w-full h-11 bg-surface-elevated border border-surface-border rounded-lg px-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-gold-500/40"
-                          />
-                        </label>
-                        <Button
-                          variant="gold"
-                          leftIcon={<Save className="w-4 h-4" />}
-                          onClick={() => handleBalanceSave(account)}
-                          isLoading={savingAccountId === account.id}
-                        >
-                          Save
-                        </Button>
+                      ))}
+                    </div>
+
+                  ) : activeTab === 'accounts' ? (
+                    detail.accounts.length > 0 ? (
+                      <div className="divide-y divide-surface-border">
+                        {detail.accounts.map(account => (
+                          <div key={account.id} className="p-4 sm:p-5">
+                            <div className="flex flex-col gap-4">
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-sm font-semibold text-white">{account.name}</p>
+                                  {account.isDefault && <Badge variant="gold">Default</Badge>}
+                                  <Badge variant="neutral" className="capitalize">{account.type}</Badge>
+                                </div>
+                                <p className="text-xs text-slate-500 font-mono mt-1">
+                                  {account.accountNumber} · {account.currency}
+                                </p>
+                                <p className="text-xl font-bold text-gold-500 font-mono mt-2">
+                                  {formatCurrency(account.balance, account.currency)}
+                                </p>
+                              </div>
+                              <div className="flex items-end gap-2">
+                                <label className="flex-1 space-y-1.5">
+                                  <span className="block text-xs font-medium text-slate-400">
+                                    New balance ({account.currency})
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={balances[account.id] ?? ''}
+                                    onChange={e => setBalances(prev => ({ ...prev, [account.id]: e.target.value }))}
+                                    className="w-full h-10 bg-surface-elevated border border-surface-border rounded-lg px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-gold-500/40"
+                                  />
+                                </label>
+                                <Button
+                                  variant="gold"
+                                  size="sm"
+                                  leftIcon={<Save className="w-3.5 h-3.5" />}
+                                  onClick={() => handleBalanceSave(account)}
+                                  isLoading={savingAccountId === account.id}
+                                >
+                                  Save
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))
+                    ) : (
+                      <div className="py-16 text-center text-sm text-slate-500">No accounts found</div>
+                    )
+
+                  ) : activeTab === 'transactions' ? (
+                    detail.transactions.length > 0 ? (
+                      <div className="divide-y divide-surface-border max-h-[55vh] overflow-y-auto">
+                        {detail.transactions.map(txn => {
+                          const { variant, label } = statusBadge(txn.status);
+                          const isCredit = txn.type === 'credit';
+                          return (
+                            <div key={txn.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                                isCredit ? 'bg-emerald-500/10' : 'bg-red-500/10'
+                              }`}>
+                                {isCredit
+                                  ? <ArrowDownLeft className="w-4 h-4 text-emerald-400" />
+                                  : <ArrowUpRight className="w-4 h-4 text-red-400" />
+                                }
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-white truncate">{txn.description}</p>
+                                <p className="text-xs text-slate-500">
+                                  {formatDate(txn.date)} · <span className="capitalize">{txn.category}</span>
+                                </p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className={`text-sm font-semibold font-mono ${isCredit ? 'text-emerald-400' : 'text-white'}`}>
+                                  {isCredit ? '+' : '−'}{formatCurrency(txn.amount, txn.currency)}
+                                </p>
+                                <Badge variant={variant} dot>{label}</Badge>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="py-16 text-center text-sm text-slate-500">No transactions found</div>
+                    )
+
                   ) : (
-                    <div className="p-6 text-sm text-slate-500">No accounts found for this user.</div>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid xl:grid-cols-2 gap-6">
-                <div className="space-y-3">
-                  <h2 className="section-title">Recent Transactions</h2>
-                  <div className="card divide-y divide-surface-border overflow-hidden">
-                    {detail.transactions.slice(0, 8).map(txn => {
-                      const { variant, label } = statusBadge(txn.status);
-                      return (
-                        <div key={txn.id} className="p-4 flex items-center gap-3">
-                          <div className={`w-2 h-2 rounded-full ${txn.type === 'credit' ? 'bg-emerald-400' : 'bg-red-400'}`} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-white truncate">{txn.description}</p>
-                            <p className="text-xs text-slate-500">{formatDate(txn.date)}</p>
+                    detail.cards.length > 0 ? (
+                      <div className="grid sm:grid-cols-2 gap-4 p-4 sm:p-5">
+                        {detail.cards.map(card => (
+                          <div key={card.id} className="bg-surface-elevated rounded-2xl p-4 space-y-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-semibold text-white capitalize">
+                                  {card.network} {card.type}
+                                </p>
+                                <p className="text-xs text-slate-500">
+                                  {card.isVirtual ? 'Virtual' : 'Physical'} · Exp {card.expiryMonth}/{card.expiryYear}
+                                </p>
+                              </div>
+                              <Badge variant={
+                                card.status === 'active' ? 'success'
+                                  : card.status === 'frozen' ? 'info'
+                                  : 'neutral'
+                              }>
+                                {card.status}
+                              </Badge>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 bg-surface-card rounded-xl p-3">
+                              <div>
+                                <p className="label-text">Card number</p>
+                                <p className="text-xs sm:text-sm text-white font-mono mt-1 break-all">
+                                  {card.demoCardNumber ?? `**** **** **** ${card.last4}`}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="label-text">CVV</p>
+                                <p className="text-sm text-white font-mono mt-1">{card.demoCvv ?? '—'}</p>
+                              </div>
+                            </div>
+                            {card.spendLimit ? (
+                              <div>
+                                <div className="flex justify-between text-xs mb-1.5">
+                                  <span className="text-slate-400">Monthly spend</span>
+                                  <span className="text-white font-mono text-xs">
+                                    {formatCurrency(card.spentThisMonth)} / {formatCurrency(card.spendLimit)}
+                                  </span>
+                                </div>
+                                <div className="h-1.5 bg-surface-card rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-gradient-gold rounded-full transition-all"
+                                    style={{ width: `${Math.min((card.spentThisMonth / card.spendLimit) * 100, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            ) : null}
                           </div>
-                          <div className="text-right">
-                            <p className={`text-sm font-mono ${txn.type === 'credit' ? 'text-emerald-400' : 'text-white'}`}>
-                              {txn.type === 'credit' ? '+' : '-'}{formatCurrency(txn.amount, txn.currency)}
-                            </p>
-                            <Badge variant={variant}>{label}</Badge>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {!isLoadingDetail && detail.transactions.length === 0 && (
-                      <div className="p-6 text-sm text-slate-500">No transactions found.</div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <h2 className="section-title">Cards</h2>
-                  <div className="card divide-y divide-surface-border overflow-hidden">
-                    {detail.cards.map(card => (
-                      <div key={card.id} className="p-4 space-y-3">
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <p className="text-sm font-semibold text-white">{card.holderName}</p>
-                            <p className="text-xs text-slate-500 capitalize">
-                              {card.network} {card.type} • {card.expiryMonth}/{card.expiryYear}
-                            </p>
-                          </div>
-                          <Badge variant={card.status === 'active' ? 'success' : card.status === 'frozen' ? 'warning' : 'neutral'}>
-                            {card.status}
-                          </Badge>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3 rounded-xl bg-surface-elevated p-3">
-                          <div>
-                            <p className="label-text">Demo card number</p>
-                            <p className="text-sm text-white font-mono mt-1">{card.demoCardNumber ?? `**** **** **** ${card.last4}`}</p>
-                          </div>
-                          <div>
-                            <p className="label-text">Demo CVV</p>
-                            <p className="text-sm text-white font-mono mt-1">{card.demoCvv ?? '---'}</p>
-                          </div>
-                        </div>
+                        ))}
                       </div>
-                    ))}
-                    {!isLoadingDetail && detail.cards.length === 0 && (
-                      <div className="p-6 text-sm text-slate-500">No cards found.</div>
-                    )}
-                  </div>
+                    ) : (
+                      <div className="py-16 text-center text-sm text-slate-500">No cards found</div>
+                    )
+                  )}
                 </div>
               </div>
             </>
           ) : (
-            <div className="card p-10 text-center text-slate-500">
-              Select a user to inspect accounts and activity.
+            <div className="card p-12 sm:p-16 text-center space-y-3">
+              <div className="w-14 h-14 rounded-2xl bg-surface-elevated flex items-center justify-center mx-auto">
+                <Users className="w-7 h-7 text-slate-600" />
+              </div>
+              <div>
+                <p className="text-slate-300 font-semibold">No user selected</p>
+                <p className="text-slate-500 text-sm mt-1">
+                  Choose a customer from the list to view their accounts, transactions, and cards
+                </p>
+              </div>
             </div>
           )}
         </section>
